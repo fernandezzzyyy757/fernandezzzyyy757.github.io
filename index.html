@@ -41,35 +41,25 @@
   .p h3 { margin:14px 0 10px; font-size:17px; letter-spacing:.08em; text-transform:uppercase; }
   .p p { color:var(--mist); font-size:15px; line-height:1.65; }
 
-  /* customizable future — the showcase band */
-  .future { max-width:1060px; margin:70px auto 0; padding:0 24px; }
-  .future-band {
-    border:1px solid var(--gold);
-    border-radius:4px;
-    padding:clamp(40px,6vw,70px) clamp(24px,5vw,60px);
-    background:linear-gradient(160deg, rgba(216,166,87,.10), rgba(216,166,87,.02) 55%);
-    position:relative;
+  /* one-of-one — customizable showcase */
+  .future { margin:90px 0 0; padding:clamp(60px,8vw,100px) 24px; background:var(--foam); color:var(--deep); text-align:center; }
+  .future .kicker { letter-spacing:.34em; font-size:12px; text-transform:uppercase; color:#8a6a2f; font-weight:700; }
+  .future h2 { font-family:"Playfair Display"; font-size:clamp(34px,6vw,64px); line-height:1.12; font-weight:700; margin-top:20px; }
+  .future h2 em { font-style:italic; color:#b4842f; }
+  .future > p { color:#41555c; font-size:18px; line-height:1.7; max-width:620px; margin:24px auto 0; }
+  .future > p b { color:var(--deep); }
+  .requests { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; max-width:860px; margin:42px auto 0; }
+  .req {
+    background:var(--deep); color:var(--foam);
+    border-radius:999px; padding:12px 22px;
+    font-size:15px; font-style:italic; font-family:"Playfair Display";
+    transform:rotate(var(--tilt,0deg));
+    transition:transform .2s;
   }
-  .future-band .badge {
-    position:absolute; top:-14px; left:clamp(24px,5vw,60px);
-    background:var(--gold); color:var(--deep);
-    font-size:11px; font-weight:700; letter-spacing:.22em; text-transform:uppercase;
-    padding:6px 16px; border-radius:999px;
-  }
-  .future-band h2 { font-family:"Playfair Display"; font-size:clamp(30px,5vw,52px); line-height:1.15; font-weight:700; }
-  .future-band h2 em { color:var(--gold); }
-  .future-band > p { color:var(--mist); font-size:17.5px; line-height:1.7; max-width:640px; margin-top:18px; }
-  .future-band > p b { color:var(--foam); }
-  .future-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-top:36px; }
-  .fut {
-    border:1px solid rgba(216,166,87,.35);
-    border-radius:4px;
-    padding:20px 18px;
-    transition:border-color .2s, background .2s;
-  }
-  .fut:hover { border-color:var(--gold); background:rgba(216,166,87,.07); }
-  .fut h4 { font-size:15px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); margin-bottom:8px; }
-  .fut p { color:var(--mist); font-size:14px; line-height:1.6; }
+  .req:hover { transform:rotate(0deg) scale(1.05); }
+  .req.gold { background:var(--gold); color:var(--deep); font-weight:600; }
+  .future .answer { margin-top:30px; font-size:16px; color:#41555c; }
+  .future .answer b { font-family:"Playfair Display"; font-style:italic; font-size:20px; color:var(--deep); }
 
   /* how it works */
   .how { max-width:1060px; margin:0 auto; padding:90px 24px 60px; }
@@ -126,17 +116,17 @@
 </div>
 
 <section class="future">
-  <div class="future-band">
-    <div class="badge">The Customizable Future</div>
-    <h2>Your site is never <em>finished</em> —<br>it grows when you do.</h2>
-    <p>Most websites are frozen the day they launch. Not mine. Every site I build is designed to <b>evolve with your business</b> — when you're ready for more, it's one DM away. No rebuild, no starting over, no new-agency fees.</p>
-    <div class="future-grid">
-      <div class="fut"><h4>Add a shop</h4><p>Start selling online whenever you're ready — products, checkout, the works.</p></div>
-      <div class="fut"><h4>Take bookings</h4><p>Appointments, reservations, scheduling — bolt it on the moment you need it.</p></div>
-      <div class="fut"><h4>New pages, new looks</h4><p>Menus change. Seasons change. Your site changes with them — fast.</p></div>
-      <div class="fut"><h4>Smart features</h4><p>Chat, AI assistants, customer forms, analytics — your site can get smarter every month.</p></div>
-    </div>
+  <div class="kicker">One of One</div>
+  <h2>No two of our websites<br>look the <em>same.</em></h2>
+  <p>Every site is built from scratch around <b>your</b> vision. You tell me the vibe, the colors, the feel — <b>I take requests</b> and build it exactly the way you want it. And it never freezes: add a shop, bookings, or a whole new look later, without ever paying someone to start over.</p>
+  <div class="requests">
+    <div class="req" style="--tilt:-2deg">"make it dark and clean like a sneaker drop"</div>
+    <div class="req gold" style="--tilt:1.5deg">"pink and girly with my logo colors"</div>
+    <div class="req" style="--tilt:2deg">"classy, like a beach restaurant at sunset"</div>
+    <div class="req gold" style="--tilt:-1.5deg">"loud. i want it LOUD."</div>
+    <div class="req" style="--tilt:1deg">"simple — just make my barbershop look pro"</div>
   </div>
+  <div class="answer">Whatever the request is, the answer is <b>"say less."</b></div>
 </section>
 
 <section class="how">
