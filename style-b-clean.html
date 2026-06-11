@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STYLE B — Clean Premium</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#fbfbfd; --ink:#0b0c10; --blue:#2563eb; --dim:#5b6472; --line:#e7e9ee; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--ink); font-family:"Sora",sans-serif; }
+  nav { display:flex; justify-content:space-between; align-items:center; padding:24px clamp(20px,6vw,80px); position:sticky; top:0; background:rgba(251,251,253,.85); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); z-index:10; }
+  .logo { font-weight:800; font-size:17px; letter-spacing:-.02em; }
+  .logo span { color:var(--blue); }
+  nav a { background:var(--ink); color:#fff; padding:11px 24px; border-radius:10px; text-decoration:none; font-weight:600; font-size:14px; transition:background .2s; }
+  nav a:hover { background:var(--blue); }
+  .hero { max-width:880px; margin:0 auto; padding:clamp(70px,11vw,140px) 24px 60px; text-align:center; }
+  .eyebrow { color:var(--blue); font-weight:600; font-size:14px; letter-spacing:.16em; text-transform:uppercase; }
+  h1 { font-size:clamp(38px,6.5vw,72px); font-weight:800; letter-spacing:-.035em; line-height:1.05; margin-top:18px; }
+  h1 em { font-style:normal; background:linear-gradient(90deg,var(--blue),#7c3aed); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero p { color:var(--dim); font-size:19px; line-height:1.65; max-width:600px; margin:26px auto 0; }
+  .actions { margin-top:38px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+  .btn { padding:16px 32px; border-radius:12px; text-decoration:none; font-weight:600; font-size:16px; transition:transform .15s, box-shadow .15s; }
+  .btn-p { background:var(--blue); color:#fff; box-shadow:0 10px 30px rgba(37,99,235,.3); }
+  .btn-p:hover { transform:translateY(-2px); box-shadow:0 14px 36px rgba(37,99,235,.4); }
+  .btn-s { border:1.5px solid var(--line); color:var(--ink); background:#fff; }
+  .trust { text-align:center; color:var(--dim); font-size:14px; padding-bottom:60px; }
+  .trust b { color:var(--ink); }
+  .features { max-width:1080px; margin:0 auto; padding:0 24px 90px; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:20px; }
+  .f { background:#fff; border:1px solid var(--line); border-radius:18px; padding:30px 26px; box-shadow:0 2px 14px rgba(11,12,16,.04); transition:transform .2s, box-shadow .2s; }
+  .f:hover { transform:translateY(-4px); box-shadow:0 14px 34px rgba(11,12,16,.08); }
+  .f .ico { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,var(--blue),#7c3aed); display:grid; place-items:center; color:#fff; font-weight:800; font-size:18px; margin-bottom:18px; }
+  .f h3 { font-size:18px; margin-bottom:10px; letter-spacing:-.01em; }
+  .f p { color:var(--dim); font-size:15px; line-height:1.6; }
+  .cta-band { background:var(--ink); color:#fff; text-align:center; padding:80px 24px; }
+  .cta-band h2 { font-size:clamp(28px,4.5vw,46px); font-weight:800; letter-spacing:-.03em; }
+  .cta-band p { color:#aab2bf; margin:16px auto 32px; max-width:480px; font-size:17px; line-height:1.6; }
+  .cta-band a { display:inline-block; background:#fff; color:var(--ink); font-weight:700; padding:17px 38px; border-radius:12px; text-decoration:none; font-size:17px; }
+  footer { text-align:center; padding:34px 20px; color:var(--dim); font-size:14px; }
+</style>
+</head>
+<body>
+<nav>
+  <div class="logo">fernandez<span>zzyyy</span></div>
+  <a href="https://instagram.com/fernandezzzyyy" target="_blank">Get a quote</a>
+</nav>
+<header class="hero">
+  <div class="eyebrow">Web design · Hampton Roads, VA (757)</div>
+  <h1>Websites that look expensive.<br><em>Prices that aren't.</em></h1>
+  <p>Custom-built sites for local businesses and brands — designed, built, and live in days. No templates, no agencies, no nonsense.</p>
+  <div class="actions">
+    <a class="btn btn-p" href="https://instagram.com/fernandezzzyyy" target="_blank">DM @fernandezzzyyy</a>
+    <a class="btn btn-s" href="#features">See what you get</a>
+  </div>
+</header>
+<div class="trust">Proudly local — serving <b>Norfolk, Virginia Beach, Chesapeake, Portsmouth, Newport News, Hampton & Suffolk</b></div>
+<div class="features" id="features">
+  <div class="f"><div class="ico">$</div><h3>Honest pricing</h3><p>A fraction of agency cost. Free quote in the DMs, the price you're told is the price you pay.</p></div>
+  <div class="f"><div class="ico">⚡</div><h3>Live in days</h3><p>Most projects go from first message to launched site within the week. No "project timelines."</p></div>
+  <div class="f"><div class="ico">✦</div><h3>Fully custom</h3><p>Zero templates. Designed from scratch around your brand, with unlimited revisions until it's right.</p></div>
+  <div class="f"><div class="ico">757</div><h3>Actually local</h3><p>Based in Hampton Roads. Work with someone who knows the area and answers fast.</p></div>
+</div>
+<div class="cta-band">
+  <h2>Your business deserves better than a template.</h2>
+  <p>Quotes are free and replies are quick. Send one message and see.</p>
+  <a href="https://instagram.com/fernandezzzyyy" target="_blank">@fernandezzzyyy on Instagram →</a>
+</div>
+<footer>© 2026 fernandezzzyyy — web design, built in the 757</footer>
+</body>
+</html>
