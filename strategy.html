@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Low Drawdown Strategy · Fernandezzzyyy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,600&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --deep: #06222e;
+    --sea:  #0c3b4d;
+    --mid:  #0d3647;
+    --foam: #eef6f4;
+    --gold: #d8a657;
+    --mist: #9fc3c2;
+    --muted:#6a8f9e;
+  }
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--deep);
+    color: var(--foam);
+    font-family: "Manrope", sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  .bg-glow {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(1200px 500px at 80% -10%, rgba(216,166,87,.10), transparent 60%),
+      radial-gradient(900px 600px at 10% 110%, rgba(159,195,194,.08), transparent 60%);
+  }
+
+  /* ── Nav ── */
+  nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 26px clamp(20px, 6vw, 72px);
+    border-bottom: 1px solid rgba(216,166,87,.12);
+  }
+  .logo { font-family: "Playfair Display"; font-size: 20px; }
+  .logo span { color: var(--gold); font-style: italic; }
+  .back-link {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    transition: color .15s;
+  }
+  .back-link:hover { color: var(--foam); }
+
+  /* ── Hero ── */
+  .hero {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: clamp(52px, 8vw, 96px) 24px 40px;
+    text-align: center;
+  }
+  .tag {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-family: "Playfair Display";
+    font-size: clamp(32px, 5.5vw, 60px);
+    line-height: 1.12;
+    font-weight: 700;
+    margin-bottom: 18px;
+  }
+  .hero h1 em { color: var(--gold); font-style: italic; }
+  .hero p {
+    color: var(--mist);
+    font-size: 16px;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  /* ── Stats row ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1px;
+    max-width: 860px;
+    margin: 44px auto 0;
+    background: rgba(216,166,87,.12);
+    border: 1px solid rgba(216,166,87,.12);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .stat {
+    background: var(--deep);
+    padding: 22px 20px;
+    text-align: center;
+  }
+  .stat-val {
+    display: block;
+    font-family: "Playfair Display";
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: -.01em;
+  }
+  .stat-val.green { color: #5ecf8a; }
+  .stat-val.red   { color: #e05252; }
+  .stat-lbl {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ── Charts ── */
+  .charts {
+    max-width: 900px;
+    margin: 52px auto 0;
+    padding: 0 24px;
+  }
+  .chart-card {
+    background: var(--mid);
+    border: 1px solid rgba(216,166,87,.10);
+    border-radius: 14px;
+    padding: 28px 28px 22px;
+    margin-bottom: 16px;
+  }
+  .chart-header { margin-bottom: 18px; }
+  .chart-title {
+    font-family: "Playfair Display";
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--foam);
+  }
+  .chart-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-top: 10px;
+  }
+  .leg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .leg-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ── Rules ── */
+  .rules {
+    max-width: 860px;
+    margin: 56px auto 0;
+    padding: 0 24px 80px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+  .rules h2 {
+    font-family: "Playfair Display";
+    font-size: clamp(22px, 3vw, 32px);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .rules .intro {
+    color: var(--mist);
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  .rules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .rule-card {
+    background: var(--mid);
+    border: 1px solid rgba(216,166,87,.10);
+    border-radius: 12px;
+    padding: 22px 20px;
+  }
+  .rule-num {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+  .rule-card h3 {
+    font-family: "Playfair Display";
+    font-size: 1rem;
+    color: var(--foam);
+    margin-bottom: 8px;
+  }
+  .rule-card p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  /* ── Disclaimer ── */
+  .disclaimer {
+    text-align: center;
+    padding: 20px 24px 48px;
+    font-size: 11px;
+    color: var(--muted);
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* ── Footer ── */
+  footer {
+    border-top: 1px solid rgba(216,166,87,.10);
+    text-align: center;
+    padding: 22px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<nav>
+  <div class="logo">fernandez<span>zzyyy</span></div>
+  <a href="index.html" class="back-link">← Home</a>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <p class="tag">Quantitative Strategy · Simulation</p>
+  <h1>Low Drawdown<br><em>Trend &amp; Vol System</em></h1>
+  <p>Capital preservation first. Smooth equity curve, automatic exposure reduction during volatile periods, and minimal time underwater.</p>
+
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-val green" id="s-cagr">—</span>
+      <span class="stat-lbl">Annual Return</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val" id="s-dd">—</span>
+      <span class="stat-lbl">Max Drawdown</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val" id="s-sharpe">—</span>
+      <span class="stat-lbl">Sharpe Ratio</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val red" id="s-bh-dd">—</span>
+      <span class="stat-lbl">Buy &amp; Hold Max DD</span>
+    </div>
+    <div class="stat">
+      <span class="stat-val" id="s-calmar">—</span>
+      <span class="stat-lbl">Calmar Ratio</span>
+    </div>
+  </div>
+</section>
+
+<!-- Charts -->
+<div class="charts">
+
+  <!-- Equity curve -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">Equity Curve</div>
+      <div class="chart-sub">Growth of $10,000 · 4-Year Simulation (1,008 trading days)</div>
+      <div class="legend">
+        <span class="leg"><span class="leg-dot" style="background:#d8a657"></span>Strategy</span>
+        <span class="leg"><span class="leg-dot" style="background:rgba(238,246,244,0.28)"></span>Buy &amp; Hold</span>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="eqChart"></canvas></div>
+  </div>
+
+  <!-- Drawdown -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">Drawdown</div>
+      <div class="chart-sub">Rolling peak-to-trough decline</div>
+      <div class="legend">
+        <span class="leg"><span class="leg-dot" style="background:#d8a657"></span>Strategy</span>
+        <span class="leg"><span class="leg-dot" style="background:rgba(224,82,82,0.7)"></span>Buy &amp; Hold</span>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="ddChart"></canvas></div>
+  </div>
+
+  <!-- Position size -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">Position Sizing</div>
+      <div class="chart-sub">Fraction of capital deployed each day (0 = fully in cash)</div>
+    </div>
+    <div class="chart-wrap"><canvas id="posChart"></canvas></div>
+  </div>
+
+</div>
+
+<!-- Strategy Rules -->
+<section class="rules">
+  <p class="section-label">How It Works</p>
+  <h2>Three Rules. Fully Systematic.</h2>
+  <p class="intro">No discretion, no gut calls. The same logic runs every day.</p>
+  <div class="rules-grid">
+    <div class="rule-card">
+      <p class="rule-num">Rule 01</p>
+      <h3>Trend Filter</h3>
+      <p>Only hold the asset when its price is above the 200-day moving average. When price drops below, move to cash. One filter eliminates the worst of bear markets.</p>
+    </div>
+    <div class="rule-card">
+      <p class="rule-num">Rule 02</p>
+      <h3>Volatility Targeting</h3>
+      <p>Scale position size inversely to 20-day realized volatility, targeting 8% annual portfolio vol. High-vol environments automatically shrink exposure — before a crisis deepens, not after.</p>
+    </div>
+    <div class="rule-card">
+      <p class="rule-num">Rule 03</p>
+      <h3>No Leverage</h3>
+      <p>Position is hard-capped at 100% of capital. In calm, trending markets you're fully invested. In choppy or falling markets, you're partially or fully out — protecting capital instead of chasing returns.</p>
+    </div>
+  </div>
+</section>
+
+<p class="disclaimer">Simulation only — not financial advice. Past simulated performance does not guarantee future results. Uses synthetic price data generated with realistic drift and volatility parameters.</p>
+
+<footer>fernandezzzyyy757.github.io</footer>
+
+<script>
+// ── Seeded LCG random number generator ──────────────────────────────────────
+class RNG {
+  constructor(seed) { this.s = seed >>> 0; }
+  next() {
+    this.s = (Math.imul(1664525, this.s) + 1013904223) >>> 0;
+    return this.s / 4294967296;
+  }
+  normal() {
+    let u, v;
+    do { u = this.next(); } while (u === 0);
+    do { v = this.next(); } while (v === 0);
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+}
+
+// ── Log-normal price series ──────────────────────────────────────────────────
+function genPrices(rng, n, mu = 0.10, sigma = 0.17) {
+  const dt  = 1 / 252;
+  const drift = (mu - 0.5 * sigma * sigma) * dt;
+  const vol   = sigma * Math.sqrt(dt);
+  const p = [100];
+  for (let i = 1; i < n; i++) {
+    p.push(p[i - 1] * Math.exp(drift + vol * rng.normal()));
+  }
+  return p;
+}
+
+// ── Simple moving average ────────────────────────────────────────────────────
+function sma(arr, period) {
+  return arr.map((_, i) => {
+    if (i < period - 1) return null;
+    let s = 0;
+    for (let j = i - period + 1; j <= i; j++) s += arr[j];
+    return s / period;
+  });
+}
+
+// ── Rolling annualised volatility ────────────────────────────────────────────
+function rollVol(rets, period) {
+  return rets.map((_, i) => {
+    if (i < period) return null;
+    const sl = rets.slice(i - period + 1, i + 1);
+    const mn = sl.reduce((a, b) => a + b, 0) / sl.length;
+    const v  = sl.reduce((a, b) => a + (b - mn) ** 2, 0) / (sl.length - 1);
+    return Math.sqrt(v * 252);
+  });
+}
+
+// ── Backtest ─────────────────────────────────────────────────────────────────
+function backtest(prices) {
+  const rets  = prices.map((p, i) => i === 0 ? 0 : p / prices[i - 1] - 1);
+  const ma200 = sma(prices, 200);
+  const vol20 = rollVol(rets, 20);
+  const TARGET_VOL = 0.08;
+
+  const eq  = [1];
+  const pos = [0];
+
+  for (let i = 1; i < prices.length; i++) {
+    const prev = eq[eq.length - 1];
+    if (ma200[i] === null || vol20[i] === null) {
+      eq.push(prev);
+      pos.push(0);
+      continue;
+    }
+    const trend = prices[i - 1] > ma200[i - 1] ? 1 : 0;
+    const sz    = trend * Math.min(1, vol20[i] > 0 ? TARGET_VOL / vol20[i] : 1);
+    eq.push(prev * (1 + sz * rets[i]));
+    pos.push(sz);
+  }
+  return { eq, pos };
+}
+
+// ── Drawdown series ──────────────────────────────────────────────────────────
+function ddSeries(eq) {
+  let peak = eq[0];
+  return eq.map(e => {
+    if (e > peak) peak = e;
+    return (e - peak) / peak * 100;
+  });
+}
+
+// ── Statistics ───────────────────────────────────────────────────────────────
+function stats(eq) {
+  const years  = (eq.length - 1) / 252;
+  const cagrV  = (Math.pow(eq[eq.length - 1] / eq[0], 1 / years) - 1) * 100;
+  const logRets = eq.map((e, i) => i === 0 ? 0 : Math.log(e / eq[i - 1])).slice(1);
+  const mn     = logRets.reduce((a, b) => a + b, 0) / logRets.length;
+  const std    = Math.sqrt(logRets.reduce((a, b) => a + (b - mn) ** 2, 0) / (logRets.length - 1));
+  const sharpeV = std > 0 ? (mn / std) * Math.sqrt(252) : 0;
+  const maxDD   = Math.min(...ddSeries(eq));
+  const calmarV = maxDD !== 0 ? cagrV / Math.abs(maxDD) : 0;
+  return { cagr: cagrV, sharpe: sharpeV, maxDD, calmar: calmarV };
+}
+
+// ── Date labels (trading days from 2022-01-03) ───────────────────────────────
+function genLabels(n) {
+  const out = [];
+  let d = new Date('2022-01-03');
+  let count = 0;
+  while (count < n) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) {
+      out.push(count % 63 === 0
+        ? d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+        : '');
+      count++;
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+// ── Run simulation ───────────────────────────────────────────────────────────
+const DAYS = 1008;            // ~4 years
+const rng  = new RNG(12345);
+const prices = genPrices(rng, DAYS);
+const { eq: stratEq, pos } = backtest(prices);
+const bhEq  = prices.map(p => p / prices[0]);
+
+const stratStats = stats(stratEq);
+const bhStats    = stats(bhEq);
+const stratDD    = ddSeries(stratEq);
+const bhDD       = ddSeries(bhEq);
+
+// Fill stat cards
+document.getElementById('s-cagr').textContent   = '+' + stratStats.cagr.toFixed(1) + '%';
+document.getElementById('s-dd').textContent     = stratStats.maxDD.toFixed(1) + '%';
+document.getElementById('s-sharpe').textContent = stratStats.sharpe.toFixed(2);
+document.getElementById('s-bh-dd').textContent  = bhStats.maxDD.toFixed(1) + '%';
+document.getElementById('s-calmar').textContent = stratStats.calmar.toFixed(2);
+
+// ── Thin data for chart rendering ────────────────────────────────────────────
+const STEP = 2;
+const labels   = genLabels(DAYS);
+const thinLbl  = labels.filter((_, i) => i % STEP === 0);
+const thinStrat = stratEq.filter((_, i) => i % STEP === 0).map(v => +(v * 10000).toFixed(0));
+const thinBH    = bhEq.filter((_, i) => i % STEP === 0).map(v => +(v * 10000).toFixed(0));
+const thinSDD  = stratDD.filter((_, i) => i % STEP === 0);
+const thinBHDD = bhDD.filter((_, i) => i % STEP === 0);
+const thinPos  = pos.filter((_, i) => i % STEP === 0).map(v => +(v * 100).toFixed(1));
+
+// ── Chart.js defaults ─────────────────────────────────────────────────────────
+Chart.defaults.color        = '#6a8f9e';
+Chart.defaults.font.family  = 'Manrope';
+Chart.defaults.font.size    = 11;
+
+const scaleBase = {
+  x: {
+    grid:  { color: 'rgba(255,255,255,0.04)' },
+    ticks: { maxRotation: 0, maxTicksLimit: 8 }
+  },
+  y: {
+    grid:     { color: 'rgba(255,255,255,0.04)' },
+    position: 'right'
+  }
+};
+
+const tooltipBase = {
+  mode:            'index',
+  intersect:       false,
+  backgroundColor: '#0d3647',
+  borderColor:     'rgba(216,166,87,0.25)',
+  borderWidth:     1,
+  titleColor:      '#eef6f4',
+  bodyColor:       '#9fc3c2',
+  padding:         10
+};
+
+const elemBase = {
+  point: { radius: 0, hitRadius: 6 },
+  line:  { tension: 0.25 }
+};
+
+// ── Equity chart ─────────────────────────────────────────────────────────────
+new Chart(document.getElementById('eqChart'), {
+  type: 'line',
+  data: {
+    labels: thinLbl,
+    datasets: [
+      {
+        label: 'Strategy',
+        data: thinStrat,
+        borderColor: '#d8a657',
+        borderWidth: 2.5,
+        fill: false
+      },
+      {
+        label: 'Buy & Hold',
+        data: thinBH,
+        borderColor: 'rgba(238,246,244,0.22)',
+        borderWidth: 1.5,
+        borderDash: [5, 5],
+        fill: false
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        ...tooltipBase,
+        callbacks: {
+          label: ctx => `${ctx.dataset.label}: $${Number(ctx.raw).toLocaleString()}`
+        }
+      }
+    },
+    scales: {
+      x: scaleBase.x,
+      y: {
+        ...scaleBase.y,
+        ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' }
+      }
+    },
+    elements: elemBase
+  }
+});
+
+// ── Drawdown chart ────────────────────────────────────────────────────────────
+new Chart(document.getElementById('ddChart'), {
+  type: 'line',
+  data: {
+    labels: thinLbl,
+    datasets: [
+      {
+        label: 'Strategy DD',
+        data: thinSDD,
+        borderColor: '#d8a657',
+        borderWidth: 2,
+        backgroundColor: 'rgba(216,166,87,0.07)',
+        fill: true
+      },
+      {
+        label: 'Buy & Hold DD',
+        data: thinBHDD,
+        borderColor: 'rgba(224,82,82,0.65)',
+        borderWidth: 1.5,
+        backgroundColor: 'rgba(224,82,82,0.05)',
+        fill: true
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        ...tooltipBase,
+        callbacks: {
+          label: ctx => `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(1)}%`
+        }
+      }
+    },
+    scales: {
+      x: scaleBase.x,
+      y: {
+        ...scaleBase.y,
+        ticks: { callback: v => v.toFixed(0) + '%' }
+      }
+    },
+    elements: elemBase
+  }
+});
+
+// ── Position size chart ───────────────────────────────────────────────────────
+new Chart(document.getElementById('posChart'), {
+  type: 'line',
+  data: {
+    labels: thinLbl,
+    datasets: [
+      {
+        label: 'Position %',
+        data: thinPos,
+        borderColor: '#9fc3c2',
+        borderWidth: 1.5,
+        backgroundColor: 'rgba(159,195,194,0.10)',
+        fill: true,
+        stepped: true
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        ...tooltipBase,
+        callbacks: {
+          label: ctx => `Position: ${Number(ctx.raw).toFixed(1)}%`
+        }
+      }
+    },
+    scales: {
+      x: scaleBase.x,
+      y: {
+        ...scaleBase.y,
+        min: 0,
+        max: 105,
+        ticks: { callback: v => v + '%' }
+      }
+    },
+    elements: { ...elemBase, line: { tension: 0 } }
+  }
+});
+</script>
+</body>
+</html>
