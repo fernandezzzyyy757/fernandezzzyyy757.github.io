@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minecraft Seed Cracker — Find Structures & Biomes</title>
+<meta name="description" content="Free browser-based Minecraft seed cracker. Enter any seed to find villages, temples, monuments, mansions and more — no install needed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,600&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --deep: #06222e;
+    --sea: #0c3b4d;
+    --foam: #eef6f4;
+    --gold: #d8a657;
+    --mist: #9fc3c2;
+    --green: #4caf50;
+    --green-dim: #2d6e31;
+    --red: #e05252;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { background:var(--deep); color:var(--foam); font-family:"Manrope",sans-serif; overflow-x:hidden; }
+  .waves { position:fixed; inset:0; z-index:-1; background:
+    radial-gradient(1200px 500px at 80% -10%, rgba(76,175,80,.07), transparent 60%),
+    radial-gradient(900px 600px at 10% 110%, rgba(159,195,194,.10), transparent 60%); }
+
+  nav { display:flex; justify-content:space-between; align-items:center; padding:26px clamp(20px,6vw,72px); }
+  .logo { font-family:"Playfair Display"; font-size:20px; text-decoration:none; color:var(--foam); }
+  .logo span { color:var(--gold); font-style:italic; }
+  nav a.quote-btn { color:var(--deep); background:var(--gold); padding:11px 26px; border-radius:999px; text-decoration:none; font-weight:700; font-size:14px; transition:transform .15s; }
+  nav a.quote-btn:hover { transform:translateY(-2px); }
+
+  .hero { max-width:860px; margin:0 auto; padding:clamp(40px,8vw,90px) 24px 30px; text-align:center; }
+  .kicker { letter-spacing:.34em; font-size:12px; text-transform:uppercase; color:var(--green); font-weight:700; }
+  h1 { font-family:"Playfair Display"; font-size:clamp(36px,6vw,72px); line-height:1.1; margin-top:18px; font-weight:700; }
+  h1 em { color:var(--green); }
+  .hero p { color:var(--mist); font-size:17px; line-height:1.7; max-width:580px; margin:22px auto 0; }
+
+  /* ── Tool card ── */
+  .tool-wrap { max-width:900px; margin:40px auto 0; padding:0 24px; }
+
+  .panel {
+    background:rgba(12,59,77,.55);
+    border:1px solid rgba(76,175,80,.22);
+    border-radius:12px;
+    padding:32px;
+    backdrop-filter:blur(6px);
+  }
+
+  .panel h2 { font-family:"Playfair Display"; font-size:22px; margin-bottom:24px; color:var(--foam); }
+  .panel h2 span { color:var(--green); font-style:italic; }
+
+  .field-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:20px; }
+  @media(max-width:640px) { .field-row { grid-template-columns:1fr; } }
+
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-size:12px; text-transform:uppercase; letter-spacing:.1em; color:var(--mist); font-weight:700; }
+  .field input[type=text], .field input[type=number], .field select {
+    background:rgba(6,34,46,.8);
+    border:1px solid rgba(159,195,194,.25);
+    border-radius:8px;
+    padding:12px 14px;
+    color:var(--foam);
+    font-family:"Manrope",sans-serif;
+    font-size:15px;
+    outline:none;
+    transition:border-color .2s;
+    width:100%;
+  }
+  .field input:focus, .field select:focus { border-color:var(--green); }
+
+  .field-full { grid-column: 1 / -1; }
+
+  /* Structure checkboxes */
+  .struct-grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    gap:10px;
+    margin-bottom:24px;
+  }
+  .struct-toggle {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 14px;
+    background:rgba(6,34,46,.6);
+    border:1px solid rgba(159,195,194,.18);
+    border-radius:8px;
+    cursor:pointer;
+    transition:border-color .2s, background .2s;
+    user-select:none;
+  }
+  .struct-toggle:hover { border-color:rgba(76,175,80,.45); }
+  .struct-toggle.active { border-color:var(--green); background:rgba(76,175,80,.12); }
+  .struct-toggle input { display:none; }
+  .struct-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .struct-toggle span { font-size:13.5px; font-weight:600; }
+
+  .btn {
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--green); color:#fff;
+    border:none; border-radius:8px;
+    padding:14px 32px; font-size:16px; font-weight:700;
+    cursor:pointer; transition:background .2s, transform .15s;
+    font-family:"Manrope",sans-serif;
+    letter-spacing:.02em;
+  }
+  .btn:hover { background:var(--green-dim); transform:translateY(-1px); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+  .btn-row { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+
+  .seed-display {
+    font-size:13px; color:var(--mist);
+    background:rgba(6,34,46,.6);
+    border:1px solid rgba(159,195,194,.15);
+    border-radius:6px;
+    padding:8px 14px;
+    font-family:monospace;
+  }
+  .seed-display b { color:var(--green); }
+
+  /* ── Results ── */
+  .results-wrap { max-width:900px; margin:32px auto 0; padding:0 24px 80px; }
+
+  .results-header {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:20px; flex-wrap:wrap; gap:12px;
+  }
+  .results-header h3 { font-family:"Playfair Display"; font-size:20px; }
+  .results-header h3 em { color:var(--green); font-style:italic; }
+  .count-badge {
+    background:rgba(76,175,80,.18);
+    border:1px solid rgba(76,175,80,.3);
+    border-radius:999px;
+    padding:4px 14px;
+    font-size:13px;
+    color:var(--green);
+    font-weight:700;
+  }
+
+  .results-grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+    gap:14px;
+  }
+
+  .struct-card {
+    background:rgba(12,59,77,.6);
+    border:1px solid rgba(159,195,194,.18);
+    border-radius:10px;
+    padding:18px 20px;
+    transition:border-color .2s, transform .2s;
+    cursor:default;
+  }
+  .struct-card:hover { border-color:rgba(76,175,80,.4); transform:translateY(-2px); }
+  .struct-card .card-head {
+    display:flex; align-items:center; gap:10px; margin-bottom:12px;
+  }
+  .struct-card .card-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .struct-card .card-name { font-size:14px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--mist); }
+  .struct-card .coords {
+    font-family:monospace;
+    font-size:18px;
+    color:var(--foam);
+    font-weight:700;
+    margin-bottom:6px;
+  }
+  .struct-card .coords span { color:var(--mist); font-size:13px; font-weight:400; }
+  .struct-card .chunk-label {
+    font-size:12px;
+    color:var(--mist);
+    margin-bottom:12px;
+  }
+  .copy-btn {
+    display:inline-flex; align-items:center; gap:6px;
+    background:rgba(76,175,80,.15);
+    border:1px solid rgba(76,175,80,.3);
+    border-radius:6px;
+    padding:6px 12px;
+    font-size:12px;
+    color:var(--green);
+    cursor:pointer;
+    transition:background .15s;
+    font-family:"Manrope",sans-serif;
+    font-weight:600;
+  }
+  .copy-btn:hover { background:rgba(76,175,80,.28); }
+  .copy-btn.copied { color:#fff; background:rgba(76,175,80,.5); border-color:var(--green); }
+
+  .no-results {
+    text-align:center; padding:60px 24px;
+    color:var(--mist); font-size:15px;
+  }
+  .no-results b { color:var(--foam); display:block; font-size:18px; margin-bottom:8px; }
+
+  .loading {
+    text-align:center; padding:60px 24px;
+    color:var(--mist); font-size:15px;
+  }
+  .spinner {
+    display:inline-block; width:32px; height:32px;
+    border:3px solid rgba(76,175,80,.2);
+    border-top-color:var(--green);
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+    margin-bottom:16px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* version badge */
+  .version-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; margin-bottom:0; }
+  .ver-tag {
+    background:rgba(159,195,194,.1);
+    border:1px solid rgba(159,195,194,.2);
+    border-radius:999px;
+    padding:4px 12px;
+    font-size:12px;
+    color:var(--mist);
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    font-weight:600;
+  }
+  .ver-tag.active { background:rgba(76,175,80,.15); border-color:var(--green); color:var(--green); }
+
+  footer { border-top:1px solid rgba(159,195,194,.2); padding:30px 24px; text-align:center; color:var(--mist); font-size:13.5px; letter-spacing:.06em; }
+  footer a { color:var(--gold); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="waves"></div>
+
+<nav>
+  <a class="logo" href="/">Fernandez<span>zzyyy</span></a>
+  <a class="quote-btn" href="https://instagram.com/fernandezzzyyy" target="_blank" rel="noopener">Get a website</a>
+</nav>
+
+<header class="hero">
+  <div class="kicker">Free Tool · Java Edition</div>
+  <h1>Minecraft<br><em>Seed Cracker</em></h1>
+  <p>Enter any world seed to find villages, temples, monuments, and more — runs entirely in your browser, no install required.</p>
+</header>
+
+<div class="tool-wrap">
+  <div class="panel">
+    <h2>Configure <span>Search</span></h2>
+
+    <div class="field-row">
+      <div class="field field-full" style="grid-column:1/3">
+        <label>World Seed</label>
+        <input type="text" id="seedInput" placeholder="Enter seed (number or text, e.g. -4172144997902289642)" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Version</label>
+        <select id="versionSelect">
+          <option value="modern">1.13 – 1.21 (Modern)</option>
+          <option value="legacy">1.8 – 1.12 (Legacy)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Center X</label>
+        <input type="number" id="centerX" value="0" placeholder="0">
+      </div>
+      <div class="field">
+        <label>Center Z</label>
+        <input type="number" id="centerZ" value="0" placeholder="0">
+      </div>
+      <div class="field">
+        <label>Search Radius (blocks)</label>
+        <input type="number" id="radius" value="5000" min="500" max="30000" step="500">
+      </div>
+    </div>
+
+    <label style="font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--mist);font-weight:700;display:block;margin-bottom:12px;">Structures to Find</label>
+    <div class="struct-grid" id="structGrid"></div>
+
+    <div class="btn-row">
+      <button class="btn" id="findBtn" onclick="runSearch()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Find Structures
+      </button>
+      <div class="seed-display" id="parsedSeed" style="display:none">Seed: <b id="parsedSeedVal"></b></div>
+    </div>
+  </div>
+</div>
+
+<div class="results-wrap" id="resultsWrap" style="display:none"></div>
+
+<footer>
+  <p>Minecraft Seed Cracker · Java Edition · Built by <a href="/" >Fernandezzzyyy</a> · <a href="https://instagram.com/fernandezzzyyy" target="_blank" rel="noopener">Instagram</a></p>
+  <p style="margin-top:8px;font-size:12px;opacity:.6">Not affiliated with Mojang or Microsoft.</p>
+</footer>
+
+<script>
+// ─── Structure definitions ───────────────────────────────────────────────────
+const STRUCTURES = [
+  { id:'village',       name:'Village',           spacing:32, separation:8,  salt:10387312,  color:'#d8a657' },
+  { id:'outpost',       name:'Pillager Outpost',  spacing:32, separation:8,  salt:165745296, color:'#c0392b' },
+  { id:'desert_temple', name:'Desert Temple',     spacing:32, separation:8,  salt:14357617,  color:'#e6b34d' },
+  { id:'jungle_temple', name:'Jungle Temple',     spacing:32, separation:8,  salt:14357619,  color:'#27ae60' },
+  { id:'swamp_hut',     name:'Witch Hut',         spacing:32, separation:8,  salt:14357620,  color:'#8e44ad' },
+  { id:'monument',      name:'Ocean Monument',    spacing:32, separation:5,  salt:10387313,  color:'#2980b9' },
+  { id:'mansion',       name:'Woodland Mansion',  spacing:80, separation:20, salt:10387319,  color:'#8e6b3e' },
+  { id:'shipwreck',     name:'Shipwreck',         spacing:24, separation:4,  salt:165745295, color:'#7f8c8d' },
+  { id:'ruined_portal', name:'Ruined Portal',     spacing:40, separation:15, salt:34222645,  color:'#6c3483' },
+  { id:'buried_treasure', name:'Buried Treasure', spacing:1,  separation:0,  salt:10387320,  color:'#f39c12', isBuried:true },
+];
+
+// Legacy (pre-1.13) structure salts — spacing/separation differ too
+const LEGACY_OVERRIDES = {
+  village:       { spacing:32, separation:8,  salt:0       },
+  outpost:       null, // doesn't exist in legacy
+  desert_temple: { spacing:32, separation:8,  salt:0       },
+  jungle_temple: { spacing:32, separation:8,  salt:0       },
+  swamp_hut:     { spacing:32, separation:8,  salt:0       },
+  monument:      { spacing:32, separation:5,  salt:0       },
+  mansion:       { spacing:80, separation:20, salt:0       },
+};
+
+// ─── Java Random (48-bit LCG) using BigInt ────────────────────────────────────
+class JavaRandom {
+  constructor(seed) {
+    if (typeof seed !== 'bigint') seed = BigInt(seed);
+    this._state = (seed ^ 25214903917n) & ((1n << 48n) - 1n);
+  }
+
+  _next(bits) {
+    this._state = (this._state * 25214903917n + 11n) & ((1n << 48n) - 1n);
+    return Number(this._state >> BigInt(48 - bits));
+  }
+
+  nextInt(bound) {
+    if ((bound & -bound) === bound) { // power of two
+      return Math.floor(this._next(31) * bound / 0x80000000);
+    }
+    let bits, val;
+    do {
+      bits = this._next(31);
+      val = bits % bound;
+    } while (bits - val + (bound - 1) < 0);
+    return val;
+  }
+}
+
+// ─── Seed parsing ─────────────────────────────────────────────────────────────
+function javaHashCode(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+  }
+  return h;
+}
+
+function parseSeed(raw) {
+  raw = raw.trim();
+  if (raw === '') return null;
+  if (/^-?\d+$/.test(raw)) {
+    try {
+      return BigInt.asIntN(64, BigInt(raw));
+    } catch(_) {}
+  }
+  return BigInt(javaHashCode(raw));
+}
+
+// ─── Structure finder ─────────────────────────────────────────────────────────
+function findStructure(worldSeed, struct, centerX, centerZ, radiusBlocks, legacy) {
+  const { spacing, separation, salt } = struct;
+  const radiusChunks = Math.ceil(radiusBlocks / 16);
+  const centerChunkX = Math.floor(centerX / 16);
+  const centerChunkZ = Math.floor(centerZ / 16);
+
+  // Region range to search
+  const rMinX = Math.floor((centerChunkX - radiusChunks) / spacing) - 1;
+  const rMaxX = Math.floor((centerChunkX + radiusChunks) / spacing) + 1;
+  const rMinZ = Math.floor((centerChunkZ - radiusChunks) / spacing) - 1;
+  const rMaxZ = Math.floor((centerChunkZ + radiusChunks) / spacing) + 1;
+
+  const results = [];
+
+  for (let rX = rMinX; rX <= rMaxX; rX++) {
+    for (let rZ = rMinZ; rZ <= rMaxZ; rZ++) {
+      let seed;
+      if (legacy) {
+        // Pre-1.13: seed = worldSeed + rX * 341873128712 + rZ * 132897987541
+        seed = BigInt.asIntN(64,
+          worldSeed +
+          BigInt(rX) * 341873128712n +
+          BigInt(rZ) * 132897987541n
+        );
+      } else {
+        seed = BigInt.asIntN(64,
+          worldSeed +
+          BigInt(rX) * 341873128712n +
+          BigInt(rZ) * 132897987541n +
+          BigInt(salt)
+        );
+      }
+
+      const rng = new JavaRandom(seed);
+      const offsetX = rng.nextInt(spacing - separation);
+      const offsetZ = rng.nextInt(spacing - separation);
+
+      const chunkX = rX * spacing + offsetX;
+      const chunkZ = rZ * spacing + offsetZ;
+
+      // Distance check
+      const blockX = chunkX * 16 + 8;
+      const blockZ = chunkZ * 16 + 8;
+      const dx = blockX - centerX;
+      const dz = blockZ - centerZ;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      if (dist <= radiusBlocks) {
+        results.push({ chunkX, chunkZ, blockX, blockZ, dist: Math.round(dist) });
+      }
+    }
+  }
+
+  results.sort((a, b) => a.dist - b.dist);
+  return results;
+}
+
+// Buried treasure uses a different scheme — 1 per chunk based on chunk seed
+function findBuriedTreasure(worldSeed, centerX, centerZ, radiusBlocks) {
+  const radiusChunks = Math.ceil(radiusBlocks / 16);
+  const centerChunkX = Math.floor(centerX / 16);
+  const centerChunkZ = Math.floor(centerZ / 16);
+  const results = [];
+
+  for (let cx = centerChunkX - radiusChunks; cx <= centerChunkX + radiusChunks; cx++) {
+    for (let cz = centerChunkZ - radiusChunks; cz <= centerChunkZ + radiusChunks; cz++) {
+      const seed = BigInt.asIntN(64,
+        worldSeed +
+        BigInt(cx) * 341873128712n +
+        BigInt(cz) * 132897987541n +
+        10387320n
+      );
+      const rng = new JavaRandom(seed);
+      if (rng.nextFloat() < 0.01) { // ~1% chance per chunk
+        const blockX = cx * 16 + 9;
+        const blockZ = cz * 16 + 9;
+        const dx = blockX - centerX;
+        const dz = blockZ - centerZ;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist <= radiusBlocks) {
+          results.push({ chunkX: cx, chunkZ: cz, blockX, blockZ, dist: Math.round(dist) });
+        }
+      }
+    }
+  }
+  results.sort((a, b) => a.dist - b.dist);
+  return results.slice(0, 20);
+}
+
+// Extend JavaRandom for nextFloat
+JavaRandom.prototype.nextFloat = function() {
+  return this._next(24) / (1 << 24);
+};
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+function buildStructGrid() {
+  const grid = document.getElementById('structGrid');
+  STRUCTURES.forEach(s => {
+    const label = document.createElement('label');
+    label.className = 'struct-toggle active';
+    label.dataset.id = s.id;
+    label.innerHTML = `
+      <input type="checkbox" checked>
+      <span class="struct-dot" style="background:${s.color}"></span>
+      <span>${s.name}</span>`;
+    label.addEventListener('click', () => {
+      const cb = label.querySelector('input');
+      cb.checked = !cb.checked;
+      label.classList.toggle('active', cb.checked);
+    });
+    grid.appendChild(label);
+  });
+}
+
+function getChecked() {
+  return [...document.querySelectorAll('.struct-toggle input:checked')]
+    .map(el => el.closest('.struct-toggle').dataset.id);
+}
+
+function fmt(n) {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function copyCoords(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy coords'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+function runSearch() {
+  const raw = document.getElementById('seedInput').value;
+  const worldSeed = parseSeed(raw);
+  if (worldSeed === null) {
+    document.getElementById('seedInput').focus();
+    return;
+  }
+
+  const centerX = parseInt(document.getElementById('centerX').value) || 0;
+  const centerZ = parseInt(document.getElementById('centerZ').value) || 0;
+  const radius  = Math.min(30000, Math.max(500, parseInt(document.getElementById('radius').value) || 5000));
+  const legacy  = document.getElementById('versionSelect').value === 'legacy';
+  const checked = getChecked();
+
+  // Show parsed seed
+  document.getElementById('parsedSeed').style.display = '';
+  document.getElementById('parsedSeedVal').textContent = worldSeed.toString();
+
+  // Show loading
+  const wrap = document.getElementById('resultsWrap');
+  wrap.style.display = '';
+  wrap.innerHTML = `<div class="loading"><div class="spinner"></div><p>Searching within ${fmt(radius)} blocks…</p></div>`;
+
+  // Defer to allow repaint
+  setTimeout(() => {
+    const allResults = [];
+
+    STRUCTURES.forEach(s => {
+      if (!checked.includes(s.id)) return;
+      if (legacy && LEGACY_OVERRIDES[s.id] === null) return; // not in this version
+      if (legacy && LEGACY_OVERRIDES[s.id]) {
+        s = { ...s, ...LEGACY_OVERRIDES[s.id] };
+      }
+
+      let found;
+      if (s.isBuried) {
+        found = findBuriedTreasure(worldSeed, centerX, centerZ, radius);
+      } else {
+        found = findStructure(worldSeed, s, centerX, centerZ, radius, legacy);
+      }
+
+      // Keep only nearest 12 per type
+      found.slice(0, 12).forEach(r => allResults.push({ ...r, struct: s }));
+    });
+
+    allResults.sort((a, b) => a.dist - b.dist);
+
+    wrap.innerHTML = '';
+
+    const header = document.createElement('div');
+    header.className = 'results-header';
+    header.innerHTML = `
+      <h3>Found <em>${allResults.length}</em> structure${allResults.length !== 1 ? 's' : ''}</h3>
+      <div class="count-badge">within ${fmt(radius)} blocks</div>`;
+    wrap.appendChild(header);
+
+    if (allResults.length === 0) {
+      const none = document.createElement('div');
+      none.className = 'no-results';
+      none.innerHTML = `<b>Nothing found</b>Try increasing the search radius or enabling more structure types.`;
+      wrap.appendChild(none);
+      return;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'results-grid';
+
+    allResults.forEach(r => {
+      const s = r.struct;
+      const card = document.createElement('div');
+      card.className = 'struct-card';
+      const teleport = `/tp @s ${r.blockX} ~ ${r.blockZ}`;
+      card.innerHTML = `
+        <div class="card-head">
+          <span class="card-dot" style="background:${s.color}"></span>
+          <span class="card-name">${s.name}</span>
+        </div>
+        <div class="coords">X ${fmt(r.blockX)} <span>/</span> Z ${fmt(r.blockZ)}</div>
+        <div class="chunk-label">Chunk [${r.chunkX}, ${r.chunkZ}] · ${fmt(r.dist)} blocks away</div>
+        <button class="copy-btn" onclick="copyCoords(this, '${teleport}')">${svgCopy()} Copy coords</button>`;
+      grid.appendChild(card);
+    });
+
+    wrap.appendChild(grid);
+  }, 30);
+}
+
+function svgCopy() {
+  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+}
+
+// Allow Enter to trigger search
+document.addEventListener('DOMContentLoaded', () => {
+  buildStructGrid();
+  document.getElementById('seedInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runSearch();
+  });
+});
+</script>
+</body>
+</html>
