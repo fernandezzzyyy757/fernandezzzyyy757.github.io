@@ -1,0 +1,8 @@
+.env
+data/*.json
+data/*.log
+data/*.pickle
+!data/.gitkeep
+__pycache__/
+*.pyc
+.robinhood_session/

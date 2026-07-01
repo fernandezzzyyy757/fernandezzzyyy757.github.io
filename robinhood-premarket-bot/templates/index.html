@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="10">
+  <title>Premarket Bot</title>
+  <style>
+    body { background:#0b0b0b; color:#e6e6e6; font-family: -apple-system, Helvetica, Arial, sans-serif; max-width:640px; margin:40px auto; padding:0 16px; }
+    h1 { font-size:20px; color:#7CFC9A; }
+    .card { background:#161616; border:1px solid #2a2a2a; border-radius:12px; padding:20px; margin-bottom:20px; }
+    .status { display:inline-block; padding:4px 10px; border-radius:20px; font-size:12px; background:#2a2a2a; }
+    .price-up { color:#37d67a; }
+    .price-down { color:#ff5c5c; }
+    ul { padding-left:18px; }
+    a { color:#8ab4ff; }
+    .btn { display:inline-block; padding:12px 24px; border-radius:8px; border:none; font-size:16px; font-weight:600; cursor:pointer; margin-right:10px; }
+    .approve { background:#37d67a; color:#003812; }
+    .reject { background:#ff5c5c; color:#3a0000; }
+    .muted { color:#888; font-size:13px; }
+  </style>
+</head>
+<body>
+  <h1>Robinhood Premarket Bot</h1>
+  <p class="muted">Status: <span class="status">{{ s.status }}</span> &middot; last update {{ s.last_update }}</p>
+
+  {% if s.status == 'proposed_entry' and s.proposal %}
+  <div class="card">
+    <h2>{{ s.proposal.symbol }} - proposed BUY</h2>
+    <p class="price-up">Premarket {{ s.proposal.premarket_move_pct }}%
+      (${{ s.proposal.previous_close }} &rarr; ${{ s.proposal.premarket_price }})</p>
+    <p><b>Suggested entry time:</b> {{ s.proposal.entry_time }}</p>
+    <p><b>Size:</b> all-in - ${{ s.proposal.dollars }} (~{{ s.proposal.est_shares }} shares)</p>
+    <p><b>Why:</b> {{ s.proposal.bullish_pct }}% bullish news sentiment</p>
+    <ul>
+      {% for h in s.proposal.headlines %}
+      <li><a href="{{ h.url }}" target="_blank">[{{ h.source }}] {{ h.headline }}</a></li>
+      {% endfor %}
+    </ul>
+    <p class="muted">Expires {{ s.proposal.expires_at }} if not approved.</p>
+    <form method="post" action="/approve-entry" style="display:inline">
+      <button class="btn approve" type="submit">Approve &amp; Buy</button>
+    </form>
+    <form method="post" action="/reject-entry" style="display:inline">
+      <button class="btn reject" type="submit">Reject</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if s.status == 'entered' and s.position %}
+  <div class="card">
+    <h2>{{ s.position.symbol }} - position open</h2>
+    <p>Bought {{ s.position.quantity }} shares @ ${{ s.position.fill_price }} at {{ s.position.filled_at }}</p>
+  </div>
+  {% endif %}
+
+  {% if s.status == 'proposed_exit' and s.exit_proposal %}
+  <div class="card">
+    <h2>{{ s.exit_proposal.symbol }} - proposed SELL</h2>
+    <p>Current: ${{ s.exit_proposal.current_price }} &middot;
+       P/L: <b class="{{ 'price-up' if s.exit_proposal.pl_pct >= 0 else 'price-down' }}">{{ s.exit_proposal.pl_pct }}%</b></p>
+    <p><b>Why:</b> {{ s.exit_proposal.reason }}</p>
+    <form method="post" action="/approve-exit" style="display:inline">
+      <button class="btn approve" type="submit">Approve &amp; Sell</button>
+    </form>
+    <form method="post" action="/reject-exit" style="display:inline">
+      <button class="btn reject" type="submit">Hold</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if s.status in ('idle',) %}
+  <div class="card"><p>No active proposal right now. The bot scans premarket each morning.</p></div>
+  {% endif %}
+
+  {% if s.history %}
+  <h2>History</h2>
+  {% for t in s.history[::-1] %}
+  <div class="card">
+    <p><b>{{ t.symbol }}</b> &middot; {{ t.date }}</p>
+    <p>Bought ${{ t.buy_price }} &rarr; Sold ${{ t.sell_price }} &middot;
+       <span class="{{ 'price-up' if t.pl_pct >= 0 else 'price-down' }}">{{ t.pl_pct }}%</span></p>
+  </div>
+  {% endfor %}
+  {% endif %}
+</body>
+</html>
