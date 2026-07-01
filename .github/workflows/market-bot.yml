@@ -1,0 +1,44 @@
+name: Market Bot
+
+on:
+  schedule:
+    # Every 15 min, 08:00-20:45 UTC, weekdays — covers US premarket through market close
+    # (approximate; shift by an hour around US DST changes)
+    - cron: '*/15 8-20 * * 1-5'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r market-bot/requirements.txt
+
+      - name: Run market bot
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          MOVE_THRESHOLD_PERCENT: ${{ vars.MOVE_THRESHOLD_PERCENT }}
+        run: python market-bot/fetch.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "market-bot"
+          git config user.email "actions@github.com"
+          git add market-bot/data/latest.json market-bot/data/alert_state.json
+          git diff --cached --quiet || git commit -m "market-bot: update data feed"
+          git push

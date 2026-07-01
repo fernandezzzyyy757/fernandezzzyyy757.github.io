@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Market Watch — Dashboard</title>
+<style>
+  :root { --bg:#0b0f14; --card:#131a22; --line:#212b36; --fg:#e8eef4; --mute:#8fa1b3;
+          --green:#3ddc84; --red:#ff5c5c; --neutral:#8fa1b3; --accent:#4f9dff; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:28px clamp(16px,4vw,48px) 60px; }
+  header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
+  h1 { font-size:22px; font-weight:700; }
+  .meta { color:var(--mute); font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; margin-top:24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  .card.mover { border-color:var(--accent); }
+  .row1 { display:flex; justify-content:space-between; align-items:center; }
+  .symbol { font-size:19px; font-weight:700; }
+  .price { font-size:15px; color:var(--mute); }
+  .change { font-weight:700; font-size:15px; }
+  .change.up { color:var(--green); }
+  .change.down { color:var(--red); }
+  .tag { display:inline-block; font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:3px 8px; border-radius:999px; margin-top:8px; margin-right:6px; }
+  .tag.mover { background:rgba(79,157,255,.15); color:var(--accent); }
+  .tag.earnings { background:rgba(255,193,7,.15); color:#ffc107; }
+  .earnings-line { margin-top:10px; font-size:13px; color:var(--mute); }
+  .news { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+  .news-item { display:flex; gap:8px; font-size:13px; line-height:1.4; padding:5px 0; }
+  .dot { flex:0 0 auto; width:8px; height:8px; border-radius:50%; margin-top:5px; }
+  .dot.positive { background:var(--green); }
+  .dot.negative { background:var(--red); }
+  .dot.neutral { background:var(--neutral); }
+  .news-item a { color:var(--fg); text-decoration:none; }
+  .news-item a:hover { text-decoration:underline; }
+  .news-src { color:var(--mute); font-size:11px; }
+  .empty { color:var(--mute); padding:60px 0; text-align:center; }
+  .err { color:var(--red); padding:20px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Market Watch</h1>
+  <div class="meta" id="meta">loading…</div>
+</header>
+<div id="root" class="grid"></div>
+
+<script>
+async function load() {
+  const root = document.getElementById('root');
+  const meta = document.getElementById('meta');
+  try {
+    const res = await fetch('data/latest.json', { cache: 'no-store' });
+    const data = await res.json();
+    meta.textContent = data.generated_at
+      ? `updated ${new Date(data.generated_at).toLocaleString()} · alert threshold ${data.move_threshold_percent}%`
+      : 'no data yet — bot has not run';
+
+    if (!data.tickers || data.tickers.length === 0) {
+      root.innerHTML = '<div class="empty">No ticker data yet. Once FINNHUB_API_KEY is set and the scheduled job runs, results show up here.</div>';
+      return;
+    }
+
+    root.innerHTML = data.tickers.map(renderCard).join('');
+  } catch (e) {
+    root.innerHTML = `<div class="err">Failed to load data/latest.json: ${e}</div>`;
+  }
+}
+
+function renderCard(t) {
+  const up = t.percent_change >= 0;
+  const tags = [];
+  if (t.is_mover) tags.push('<span class="tag mover">mover</span>');
+  if (t.earnings_today) tags.push('<span class="tag earnings">earnings today</span>');
+
+  const earningsLine = t.upcoming_earnings
+    ? `<div class="earnings-line">Next earnings: ${t.upcoming_earnings.date}${t.upcoming_earnings.eps_estimate != null ? ` · EPS est ${t.upcoming_earnings.eps_estimate}` : ''}</div>`
+    : '';
+  const lastEarningsLine = t.last_earnings && t.last_earnings.actual != null
+    ? `<div class="earnings-line">Last earnings: actual ${t.last_earnings.actual} vs est ${t.last_earnings.estimate} (${t.last_earnings.surprise_percent != null ? t.last_earnings.surprise_percent + '%' : 'n/a'} surprise)</div>`
+    : '';
+
+  const news = (t.news || []).slice(0, 5).map(n => `
+    <div class="news-item">
+      <span class="dot ${n.sentiment}"></span>
+      <div><a href="${n.url}" target="_blank" rel="noopener">${escapeHtml(n.headline)}</a>
+      <div class="news-src">${n.source || ''}</div></div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="card ${t.is_mover ? 'mover' : ''}">
+      <div class="row1">
+        <div class="symbol">${t.symbol}</div>
+        <div class="price">$${t.price}</div>
+      </div>
+      <div class="change ${up ? 'up' : 'down'}">${up ? '+' : ''}${t.percent_change}%</div>
+      <div>${tags.join('')}</div>
+      ${earningsLine}${lastEarningsLine}
+      <div class="news">${news || '<span class="news-src">No recent news</span>'}</div>
+    </div>
+  `;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+load();
+</script>
+</body>
+</html>
