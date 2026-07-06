@@ -125,9 +125,13 @@ def news_mentions(symbol, title, headlines):
         first = re.split(r"[\s,]+", title.strip())[0]
         if len(first) > 3 and first.upper() != symbol:
             company = first.lower()
+    # Bare-word ticker matching needs the symbol to stand alone (no letters on
+    # either side), and single-letter tickers like S or F only ever count as
+    # $cashtags — as bare words they match the start of ordinary capitalized
+    # words ("Silver", "SpaceX").
     pattern = None
-    if symbol not in AMBIGUOUS:
-        pattern = re.compile(r"(?<![A-Z$])" + re.escape(symbol) + r"(?![A-Z])")
+    if len(symbol) >= 2 and symbol not in AMBIGUOUS:
+        pattern = re.compile(r"(?<![A-Za-z$&])" + re.escape(symbol) + r"(?![A-Za-z])")
     cashtag = "$" + symbol
     count, link, headline = 0, "", ""
     for h in headlines:
