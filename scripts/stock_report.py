@@ -30,6 +30,9 @@ FEEDS = [
     ("CNBC", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"),
     ("MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
     ("MarketWatch Pulse", "https://feeds.content.dowjones.io/public/rss/mw_marketpulse"),
+    ("Seeking Alpha", "https://seekingalpha.com/market_currents.xml"),
+    ("Benzinga", "https://www.benzinga.com/feed"),
+    ("Investing.com", "https://www.investing.com/rss/news_25.rss"),
 ]
 
 
@@ -59,8 +62,9 @@ def parse_feed(xml_text, source):
     return items
 
 
-def gather_headlines(now_utc, window):
-    cutoff = now_utc - window
+def gather_headlines(now_utc):
+    """All deduped headlines from the last 24h, newest first."""
+    cutoff = now_utc - timedelta(hours=24)
     headlines, seen, errors = [], set(), []
     for source, url in FEEDS:
         try:
@@ -139,14 +143,29 @@ def main():
 
     overnight = report_hour == REPORT_HOURS[0]
     window = timedelta(hours=15) if overnight else timedelta(minutes=75)
-    headlines, errors = gather_headlines(now_utc, window)
+    all_headlines, errors = gather_headlines(now_utc)
     for err in errors:
         print(f"feed error: {err}", file=sys.stderr)
-    if not headlines and errors and len(errors) == len(FEEDS):
+    if not all_headlines and errors and len(errors) == len(FEEDS):
         print("All feeds failed.", file=sys.stderr)
         return 1
 
+    fresh_cutoff = now_utc - window
+    headlines = [h for h in all_headlines if h["published"] >= fresh_cutoff]
     payload = build_payload(headlines, report_hour, now_ct, overnight)
+
+    # Radar rides along in a second embed; its failure never blocks the news.
+    try:
+        import radar
+
+        picks = radar.build_radar(all_headlines, now_utc)
+        radar_embed = radar.format_radar(picks)
+        if radar_embed:
+            payload["embeds"].append(radar_embed)
+        else:
+            print("radar: no picks passed the filters this run")
+    except Exception as exc:  # noqa: BLE001
+        print(f"radar failed: {exc}", file=sys.stderr)
 
     if dry_run:
         print(json.dumps(payload, indent=2))

@@ -40,5 +40,5 @@ jobs:
       - name: Send report
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '' }}
+          FORCE: ${{ github.event_name != 'schedule' && '1' || '' }}
         run: python3 scripts/stock_report.py
