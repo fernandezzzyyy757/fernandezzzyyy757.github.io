@@ -23,6 +23,10 @@ on:
         description: "Post now even outside 7-9 AM Central"
         type: boolean
         default: true
+  # Temporary while developing: pushes to the dev branch run the full
+  # pipeline in dry-run mode (report printed to logs, not posted).
+  push:
+    branches: ["claude/discord-news-bot-v0a3bc"]
 
 concurrency:
   group: stock-report
@@ -40,5 +44,6 @@ jobs:
       - name: Send report
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '' }}
+          FORCE: ${{ github.event_name != 'schedule' && '1' || '' }}
+          DRY_RUN: ${{ github.event_name == 'push' && '1' || '' }}
         run: python3 scripts/stock_report.py
