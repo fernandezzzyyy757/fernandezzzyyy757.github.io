@@ -1,0 +1,44 @@
+# Morning stock news report -> Discord.
+#
+# Target times: 7, 8, and 9 AM Central (Texas) time, every day.
+# GitHub cron only speaks UTC, so we fire at 12-15 UTC and let the script
+# decide: it only posts when the current Central time hour is 7, 8, or 9,
+# which stays correct across daylight saving changes.
+#
+# Setup: add a repo secret named DISCORD_WEBHOOK_URL
+# (Settings -> Secrets and variables -> Actions -> New repository secret)
+# containing your Discord channel webhook URL.
+#
+# Note: GitHub runs scheduled jobs on a best-effort basis; they can start
+# 5-30 minutes late during busy periods. That is a platform limitation.
+
+name: Stock Report
+
+on:
+  schedule:
+    - cron: "0 12,13,14,15 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Post now even outside 7-9 AM Central"
+        type: boolean
+        default: true
+
+concurrency:
+  group: stock-report
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send report
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '' }}
+        run: python3 scripts/stock_report.py
