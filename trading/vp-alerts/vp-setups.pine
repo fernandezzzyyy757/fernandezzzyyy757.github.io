@@ -1,0 +1,418 @@
+//@version=6
+// ─────────────────────────────────────────────────────────────────────────────
+// VP SETUPS — Volume Profile alerts: VA fade · Naked POC · LVN break
+//
+// Computes the prior RTH session's volume profile (POC / VAH / VAL), tracks
+// naked POCs across sessions, finds the LVN shelf, and fires filtered alerts
+// with suggested entry / stop / targets in every message.
+//
+// Recommended chart: 5-minute, front-month contract (MES1!, MNQ1!, ...).
+// Alert setup: create ONE alert on this indicator, condition
+// "Any alert() function call", and paste your Discord webhook URL.
+//
+// Levels are points of interest, not signals. Suggested stops/targets are
+// structure-based starting points — backtest and tune before risking money.
+// ─────────────────────────────────────────────────────────────────────────────
+indicator("VP Setups — VA Fade / Naked POC / LVN Break", "VP Setups",
+     overlay = true, max_lines_count = 200, max_boxes_count = 60, max_labels_count = 200)
+
+// ───────────────────────────── Inputs ─────────────────────────────
+grpP = "Profile"
+sessRTH  = input.session("0930-1615", "RTH session",            group = grpP)
+tzName   = input.string("America/New_York", "Session timezone", group = grpP)
+rowsN    = input.int(24,    "Profile rows",       minval = 12, maxval = 48, group = grpP)
+vaPct    = input.float(70,  "Value area %",       minval = 50, maxval = 90, group = grpP)
+
+grpS = "Setups (toggle per instrument)"
+useFade  = input.bool(true, "A — Value-area fade  (best: MES/ES)", group = grpS)
+useNpoc  = input.bool(true, "B — Naked POC tag    (best: MES/ES)", group = grpS)
+useLvn   = input.bool(true, "C — LVN break        (best: MNQ/NQ)", group = grpS)
+
+grpF = "Filters"
+win1       = input.session("0930-1130", "Alert window 1",                     group = grpF)
+win2       = input.session("1400-1600", "Alert window 2",                     group = grpF)
+volLen     = input.int(20,     "Volume average length",                       group = grpF)
+brkVolMult = input.float(1.5,  "LVN break: volume ≥ × avg",     step = 0.1,   group = grpF)
+prbVolMult = input.float(1.0,  "Fade probe: volume ≤ × avg",    step = 0.1,   group = grpF)
+minWicks   = input.int(2,      "Fade: min rejection wicks",     minval = 1,   group = grpF)
+wickFrac   = input.float(0.5,  "Fade: wick ≥ fraction of bar",  step = 0.05,  group = grpF)
+lockBars   = input.int(6,      "Trend-day lockout: bars held outside value",  group = grpF)
+atrBufMult = input.float(0.3,  "Stop buffer × ATR(14)",         step = 0.05,  group = grpF)
+maxStopAtr = input.float(1.0,  "Skip if stop wider than × ATR", step = 0.1,   group = grpF)
+minRR      = input.float(2.0,  "Minimum reward:risk to alert",  step = 0.25,  group = grpF)
+lvnRowPct  = input.float(30,   "LVN: row < % of POC row",       minval = 10, maxval = 60, group = grpF)
+maxNpoc    = input.int(12,     "Max naked POCs tracked",        minval = 3, maxval = 20,  group = grpF)
+
+grpA = "Alerts"
+discordFmt = input.bool(true, "Format alert as Discord webhook JSON", group = grpA)
+
+if timeframe.isdwm
+    runtime.error("VP Setups needs an intraday chart — 5-minute recommended.")
+
+// ───────────────────────────── Palette ─────────────────────────────
+cAmber = color.rgb(192, 122, 32)
+cSlate = color.rgb(94, 123, 201)
+cUp    = color.rgb(46, 158, 119)
+cDown  = color.rgb(201, 86, 79)
+cFillVA  = color.new(cSlate, 88)
+cFillLVN = color.new(color.gray, 85)
+
+// ───────────────────────────── Session state ─────────────────────────────
+inRTH      = not na(time(timeframe.period, sessRTH, tzName))
+newSession = inRTH and not inRTH[1]
+sessionEnd = (not inRTH) and inRTH[1]
+inWindow   = not na(time(timeframe.period, win1, tzName)) or not na(time(timeframe.period, win2, tzName))
+
+volAvg = ta.sma(volume, volLen)
+atrV   = ta.atr(14)
+atrBuf = atrBufMult * atrV
+hh30   = ta.highest(high, 30)   // swing preceding a pullback — nPOC target (long)
+ll30   = ta.lowest(low, 30)     // nPOC target (short)
+
+// per-session accumulation (per-bar H/L/V, binned at session end)
+var array<float> accH = array.new_float()
+var array<float> accL = array.new_float()
+var array<float> accV = array.new_float()
+
+// prior-session profile results
+var float pPoc = na
+var float pVah = na
+var float pVal = na
+var float lvnLo = na      // bottom of the low-volume shelf
+var float lvnHi = na      // top of the shelf (leading edge of upper HVN)
+var float hvnUpPoc = na   // heaviest row above the shelf
+var float hvnDnPoc = na   // heaviest row below the shelf
+
+// naked POC store
+var array<float> npP  = array.new_float()   // POC price
+var array<float> npLo = array.new_float()   // volume-node low (for stops)
+var array<float> npHi = array.new_float()   // volume-node high
+var array<int>   npT  = array.new_int()     // session close time
+var array<line>  npLn = array.new<line>()
+
+// drawings for the prior session levels
+var line pocLn = na
+var line vahLn = na
+var line valLn = na
+var box  vaBox = na
+var box  lvnBox = na
+
+// ───────────────────────────── Profile math ─────────────────────────────
+// Bin the finished session into rows, then derive POC, 70% value area,
+// the POC volume node (for nPOC stops), and the most prominent LVN shelf.
+f_finalize() =>
+    float poc = na
+    float vah = na
+    float val = na
+    float nodeLo = na
+    float nodeHi = na
+    float zLo = na
+    float zHi = na
+    float upPoc = na
+    float dnPoc = na
+    int n = array.size(accV)
+    if n > 5
+        float sHi = array.max(accH)
+        float sLo = array.min(accL)
+        float rowH = (sHi - sLo) / rowsN
+        if rowH > 0
+            vols = array.new_float(rowsN, 0.0)
+            for i = 0 to n - 1
+                bH = array.get(accH, i)
+                bL = array.get(accL, i)
+                bV = array.get(accV, i)
+                int b0 = math.max(0, math.min(rowsN - 1, int(math.floor((bL - sLo) / rowH))))
+                int b1 = math.max(0, math.min(rowsN - 1, int(math.floor((bH - sLo) / rowH))))
+                float per = bV / (b1 - b0 + 1)
+                for b = b0 to b1
+                    array.set(vols, b, array.get(vols, b) + per)
+            // POC
+            int pocIdx = 0
+            for b = 1 to rowsN - 1
+                if array.get(vols, b) > array.get(vols, pocIdx)
+                    pocIdx := b
+            float pocVol = array.get(vols, pocIdx)
+            poc := sLo + (pocIdx + 0.5) * rowH
+            // value area: expand greedily around POC to vaPct of volume
+            float total = array.sum(vols)
+            int loI = pocIdx
+            int hiI = pocIdx
+            float acc = pocVol
+            while acc < total * vaPct / 100 and (loI > 0 or hiI < rowsN - 1)
+                float below = loI > 0 ? array.get(vols, loI - 1) : -1.0
+                float above = hiI < rowsN - 1 ? array.get(vols, hiI + 1) : -1.0
+                if above >= below
+                    hiI += 1
+                    acc += array.get(vols, hiI)
+                else
+                    loI -= 1
+                    acc += array.get(vols, loI)
+            val := sLo + loI * rowH
+            vah := sLo + (hiI + 1) * rowH
+            // POC volume node: contiguous rows holding ≥ 50% of the POC row
+            int nL = pocIdx
+            int nH = pocIdx
+            while nL > 0 and array.get(vols, nL - 1) >= 0.5 * pocVol
+                nL -= 1
+            while nH < rowsN - 1 and array.get(vols, nH + 1) >= 0.5 * pocVol
+                nH += 1
+            nodeLo := sLo + nL * rowH
+            nodeHi := sLo + (nH + 1) * rowH
+            // LVN shelf: weakest contiguous run of thin rows strictly inside the profile
+            float thr = pocVol * lvnRowPct / 100
+            int bestS = -1
+            int bestE = -1
+            float bestAvg = 1.0e20
+            int runS = -1
+            for b = 0 to rowsN - 1
+                bool thin = array.get(vols, b) < thr
+                if thin and runS < 0
+                    runS := b
+                if (not thin or b == rowsN - 1) and runS >= 0
+                    int runE = thin ? b : b - 1
+                    if runS > 0 and runE < rowsN - 1   // interior only, HVN on both sides
+                        float s = 0.0
+                        for r = runS to runE
+                            s += array.get(vols, r)
+                        float avgV = s / (runE - runS + 1)
+                        if avgV < bestAvg
+                            bestAvg := avgV
+                            bestS := runS
+                            bestE := runE
+                    runS := -1
+            if bestS >= 0
+                zLo := sLo + bestS * rowH
+                zHi := sLo + (bestE + 1) * rowH
+                // heaviest row on each side of the shelf = the opposing HVNs
+                int uI = bestE + 1
+                for b = bestE + 1 to rowsN - 1
+                    if array.get(vols, b) > array.get(vols, uI)
+                        uI := b
+                int dI = 0
+                for b = 0 to bestS - 1
+                    if array.get(vols, b) > array.get(vols, dI)
+                        dI := b
+                upPoc := sLo + (uI + 0.5) * rowH
+                dnPoc := sLo + (dI + 0.5) * rowH
+    [poc, vah, val, nodeLo, nodeHi, zLo, zHi, upPoc, dnPoc]
+
+// ───────────────────────────── Alert plumbing ─────────────────────────────
+f_px(float x) => str.tostring(x, format.mintick)
+
+f_send(string emoji, string title, string l1, string l2, string l3) =>
+    string nl = discordFmt ? "\\n" : "\n"
+    string head = emoji + " **" + syminfo.ticker + " — " + title + "**"
+    string bodyTxt = head + nl + l1 + nl + l2 + (l3 == "" ? "" : nl + l3)
+    string msg = discordFmt ? '{"content":"' + bodyTxt + '"}' : bodyTxt
+    alert(msg, alert.freq_once_per_bar_close)
+
+f_mark(string txt, bool below, color c) =>
+    label.new(bar_index, below ? low : high, txt,
+         style = below ? label.style_label_up : label.style_label_down,
+         color = color.new(c, 15), textcolor = color.white, size = size.small)
+
+// ───────────────────────────── Setup state ─────────────────────────────
+var bool  fadeLocked = false
+var int   lockDir    = 0
+var int   outsideCnt = 0
+var bool  probeLoOn  = false
+var float probeLow   = na
+var int   wickLoCnt  = 0
+var bool  probeHiOn  = false
+var float probeHigh  = na
+var int   wickHiCnt  = 0
+var bool  fadeLongFired  = false
+var bool  fadeShortFired = false
+var bool  lvnUpFired = false
+var bool  lvnDnFired = false
+
+// ───────────────────────────── Per-bar logic (confirmed bars only) ─────────────────────────────
+if barstate.isconfirmed
+
+    // ---- session rollover ----
+    if newSession
+        fadeLocked := false
+        outsideCnt := 0
+        lockDir := not na(pVah) and open > pVah ? 1 : not na(pVal) and open < pVal ? -1 : 0
+        probeLoOn := false
+        probeHiOn := false
+        wickLoCnt := 0
+        wickHiCnt := 0
+        fadeLongFired := false
+        fadeShortFired := false
+        lvnUpFired := false
+        lvnDnFired := false
+        array.clear(accH)
+        array.clear(accL)
+        array.clear(accV)
+
+    // ---- accumulate session volume-at-price ----
+    if inRTH
+        array.push(accH, high)
+        array.push(accL, low)
+        array.push(accV, volume)
+
+    // ---- finalize the session profile ----
+    if sessionEnd and array.size(accV) > 5
+        [poc, vah, val, nodeLo, nodeHi, zLo, zHi, upPoc, dnPoc] = f_finalize()
+        if not na(poc)
+            // the finished session's POC starts life as a naked POC
+            array.push(npP, poc)
+            array.push(npLo, nodeLo)
+            array.push(npHi, nodeHi)
+            array.push(npT, time)
+            array.push(npLn, line.new(bar_index, poc, bar_index + 1, poc,
+                 extend = extend.right, color = color.new(cAmber, 25),
+                 style = line.style_dotted, width = 2))
+            if array.size(npP) > maxNpoc
+                line.delete(array.shift(npLn))
+                array.shift(npP)
+                array.shift(npLo)
+                array.shift(npHi)
+                array.shift(npT)
+            // refresh the prior-session level drawings
+            line.delete(pocLn)
+            line.delete(vahLn)
+            line.delete(valLn)
+            box.delete(vaBox)
+            box.delete(lvnBox)
+            pocLn := line.new(bar_index, poc, bar_index + 1, poc, extend = extend.right, color = cAmber, width = 2)
+            vahLn := line.new(bar_index, vah, bar_index + 1, vah, extend = extend.right, color = cSlate, style = line.style_dashed)
+            valLn := line.new(bar_index, val, bar_index + 1, val, extend = extend.right, color = cSlate, style = line.style_dashed)
+            vaBox := box.new(bar_index, vah, bar_index + 1, val, extend = extend.right, bgcolor = cFillVA, border_color = color.new(cSlate, 100))
+            if not na(zLo)
+                lvnBox := box.new(bar_index, zHi, bar_index + 1, zLo, extend = extend.right, bgcolor = cFillLVN, border_color = color.new(color.gray, 60))
+            pPoc := poc
+            pVah := vah
+            pVal := val
+            lvnLo := zLo
+            lvnHi := zHi
+            hvnUpPoc := upPoc
+            hvnDnPoc := dnPoc
+        array.clear(accH)
+        array.clear(accL)
+        array.clear(accV)
+
+    // ---- trend-day lockout for fades ----
+    if inRTH and lockDir != 0 and not fadeLocked
+        bool stillOut = lockDir == 1 ? close > pVah : close < pVal
+        if stillOut
+            outsideCnt += 1
+            if outsideCnt >= lockBars
+                fadeLocked := true
+                f_mark("FADES OFF\ntrend day", false, color.gray)
+        else
+            lockDir := 0
+
+    // ---- Setup B: naked POC tag ----
+    if inRTH and array.size(npP) > 0
+        int j = 0
+        while j < array.size(npP)
+            float p = array.get(npP, j)
+            if high >= p and low <= p and bar_index > 0
+                bool longSide = close[1] > p
+                float stopP  = longSide ? array.get(npLo, j) - atrBuf : array.get(npHi, j) + atrBuf
+                float target = longSide ? hh30 : ll30
+                float risk   = longSide ? p - stopP : stopP - p
+                float rew    = longSide ? target - p : p - target
+                int ageDays  = math.round((time - array.get(npT, j)) / 86400000.0)
+                bool ok = useNpoc and inWindow and risk > 0 and risk <= maxStopAtr * atrV and rew / risk >= minRR
+                if ok
+                    f_send("🟠", "NAKED POC TAG — " + (longSide ? "LONG" : "SHORT"),
+                         "Tagged untested POC " + f_px(p) + " from " + str.tostring(ageDays) + " session(s) ago",
+                         "Entry ~" + f_px(p) + " · Stop " + f_px(stopP) + " · Target " + f_px(target),
+                         "Risk " + f_px(risk) + " · ~" + str.tostring(rew / risk, "#.#") + "R — confirm reaction at the level first")
+                    f_mark("nPOC", longSide, cAmber)
+                // touched → no longer naked, drop it either way
+                line.set_extend(array.get(npLn, j), extend.none)
+                line.set_x2(array.get(npLn, j), bar_index)
+                array.remove(npLn, j)
+                array.remove(npP, j)
+                array.remove(npLo, j)
+                array.remove(npHi, j)
+                array.remove(npT, j)
+            else
+                j += 1
+
+    // ---- Setup A: value-area fade (long side) ----
+    if inRTH and not na(pVal) and not na(pPoc)
+        if close < pVal
+            if not probeLoOn
+                probeLoOn := true
+                probeLow := low
+                wickLoCnt := 0
+            else
+                probeLow := math.min(probeLow, low)
+            float rng = high - low
+            float lw = math.min(open, close) - low
+            if rng > 0 and lw >= wickFrac * rng and volume <= prbVolMult * volAvg
+                wickLoCnt += 1
+        else
+            if probeLoOn and useFade and not fadeLocked and not fadeLongFired and inWindow and wickLoCnt >= minWicks
+                float entry = close
+                float stopP = probeLow - atrBuf
+                float risk = entry - stopP
+                if risk > 0 and risk <= maxStopAtr * atrV and pPoc > entry and (pPoc - entry) / risk >= minRR
+                    f_send("🟢", "VA FADE — LONG",
+                         "Closed back inside value after rejection below VAL " + f_px(pVal) + " (" + str.tostring(wickLoCnt) + " rejection wicks)",
+                         "Entry ~" + f_px(entry) + " · Stop " + f_px(stopP) + " · T1 (POC) " + f_px(pPoc) + " · T2 (VAH) " + f_px(pVah),
+                         "Risk " + f_px(risk) + " · " + str.tostring((pPoc - entry) / risk, "#.#") + "R to T1")
+                    f_mark("FADE ▲", true, cUp)
+                    fadeLongFired := true
+            probeLoOn := false
+            wickLoCnt := 0
+
+    // ---- Setup A: value-area fade (short side) ----
+    if inRTH and not na(pVah) and not na(pPoc)
+        if close > pVah
+            if not probeHiOn
+                probeHiOn := true
+                probeHigh := high
+                wickHiCnt := 0
+            else
+                probeHigh := math.max(probeHigh, high)
+            float rng2 = high - low
+            float uw = high - math.max(open, close)
+            if rng2 > 0 and uw >= wickFrac * rng2 and volume <= prbVolMult * volAvg
+                wickHiCnt += 1
+        else
+            if probeHiOn and useFade and not fadeLocked and not fadeShortFired and inWindow and wickHiCnt >= minWicks
+                float entry = close
+                float stopP = probeHigh + atrBuf
+                float risk = stopP - entry
+                if risk > 0 and risk <= maxStopAtr * atrV and pPoc < entry and (entry - pPoc) / risk >= minRR
+                    f_send("🔴", "VA FADE — SHORT",
+                         "Closed back inside value after rejection above VAH " + f_px(pVah) + " (" + str.tostring(wickHiCnt) + " rejection wicks)",
+                         "Entry ~" + f_px(entry) + " · Stop " + f_px(stopP) + " · T1 (POC) " + f_px(pPoc) + " · T2 (VAL) " + f_px(pVal),
+                         "Risk " + f_px(risk) + " · " + str.tostring((entry - pPoc) / risk, "#.#") + "R to T1")
+                    f_mark("FADE ▼", false, cDown)
+                    fadeShortFired := true
+            probeHiOn := false
+            wickHiCnt := 0
+
+    // ---- Setup C: LVN break ----
+    if inRTH and useLvn and not na(lvnLo) and bar_index > 0
+        // upward: close from below the shelf to inside/through it, on real volume
+        if not lvnUpFired and close[1] <= lvnLo and close > lvnLo and volume >= brkVolMult * volAvg and inWindow
+            float entry = close
+            float stopP = lvnLo - atrBuf
+            float risk = entry - stopP
+            if risk > 0 and risk <= maxStopAtr * atrV and not na(hvnUpPoc) and (hvnUpPoc - entry) / risk >= minRR
+                f_send("🔵", "LVN BREAK — LONG",
+                     "Closed into the low-volume shelf " + f_px(lvnLo) + "–" + f_px(lvnHi) + " on " + str.tostring(volume / volAvg, "#.#") + "× avg volume",
+                     "Entry ~" + f_px(entry) + " · Stop " + f_px(stopP) + " · T1 (shelf top) " + f_px(lvnHi) + " · T2 (HVN) " + f_px(hvnUpPoc),
+                     "Risk " + f_px(risk) + " · " + str.tostring((hvnUpPoc - entry) / risk, "#.#") + "R to T2")
+                f_mark("LVN ▲", true, cSlate)
+                lvnUpFired := true
+        // downward: close from above the shelf to inside/through it
+        if not lvnDnFired and close[1] >= lvnHi and close < lvnHi and volume >= brkVolMult * volAvg and inWindow
+            float entry = close
+            float stopP = lvnHi + atrBuf
+            float risk = stopP - entry
+            if risk > 0 and risk <= maxStopAtr * atrV and not na(hvnDnPoc) and (entry - hvnDnPoc) / risk >= minRR
+                f_send("🔵", "LVN BREAK — SHORT",
+                     "Closed into the low-volume shelf " + f_px(lvnLo) + "–" + f_px(lvnHi) + " on " + str.tostring(volume / volAvg, "#.#") + "× avg volume",
+                     "Entry ~" + f_px(entry) + " · Stop " + f_px(stopP) + " · T1 (shelf bottom) " + f_px(lvnLo) + " · T2 (HVN) " + f_px(hvnDnPoc),
+                     "Risk " + f_px(risk) + " · " + str.tostring((entry - hvnDnPoc) / risk, "#.#") + "R to T2")
+                f_mark("LVN ▼", false, cSlate)
+                lvnDnFired := true
