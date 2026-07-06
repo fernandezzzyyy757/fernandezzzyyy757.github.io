@@ -23,10 +23,6 @@ on:
         description: "Post now even outside 7-9 AM Central"
         type: boolean
         default: true
-  # Temporary while developing: pushes to the dev branch run the full
-  # pipeline in dry-run mode (report printed to logs, not posted).
-  push:
-    branches: ["claude/discord-news-bot-v0a3bc"]
 
 concurrency:
   group: stock-report
