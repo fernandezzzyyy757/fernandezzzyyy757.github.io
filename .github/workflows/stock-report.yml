@@ -24,6 +24,9 @@ on:
         description: "Post now even outside 7-9 AM Central"
         type: boolean
         default: true
+  # Pushes to the dev branch post a real report immediately (on-demand runs).
+  push:
+    branches: ["claude/discord-news-bot-v0a3bc"]
 
 concurrency:
   group: stock-report
