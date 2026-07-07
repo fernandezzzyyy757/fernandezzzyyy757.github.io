@@ -16,7 +16,8 @@ name: Stock Report
 
 on:
   schedule:
-    - cron: "0 12,13,14,15 * * *"
+    # Minute 7, not 0 — GitHub drops on-the-hour crons under load.
+    - cron: "7 12,13,14,15 * * *"
   workflow_dispatch:
     inputs:
       force:
