@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Journal — Robinhood</title>
+<meta name="description" content="Private Robinhood trading journal. Import your Robinhood report CSV — every trade, P&L in $ and %, hold time, win rate. Data never leaves your browser.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,600&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page:#06222e;          /* page plane */
+    --surface:#0b2b3a;       /* card / chart surface */
+    --surface-2:#0e3345;     /* hover rows, inputs */
+    --ink:#eef6f4;           /* primary text */
+    --ink-2:#9fc3c2;         /* secondary text */
+    --muted:#69909a;         /* axis / labels */
+    --grid:rgba(159,195,194,.14);
+    --hairline:rgba(159,195,194,.18);
+    --gold:#d8a657;          /* brand accent (UI only) */
+    --series:#b8842f;        /* chart mark — validated on --surface */
+    --gain:#2fbf71;
+    --loss:#e66767;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--page); color:var(--ink); font-family:"Manrope",sans-serif; overflow-x:hidden; }
+  .waves { position:fixed; inset:0; z-index:-1; background:
+    radial-gradient(1200px 500px at 80% -10%, rgba(216,166,87,.10), transparent 60%),
+    radial-gradient(900px 600px at 10% 110%, rgba(159,195,194,.08), transparent 60%); }
+
+  nav { display:flex; justify-content:space-between; align-items:center; padding:22px clamp(20px,5vw,56px); }
+  .logo { font-family:"Playfair Display"; font-size:19px; }
+  .logo span { color:var(--gold); font-style:italic; }
+  nav a { color:var(--ink-2); text-decoration:none; font-size:14px; }
+  nav a:hover { color:var(--gold); }
+
+  main { max-width:1120px; margin:0 auto; padding:10px clamp(16px,4vw,32px) 80px; }
+  h1 { font-family:"Playfair Display"; font-size:clamp(30px,5vw,46px); font-weight:700; }
+  h1 em { color:var(--gold); }
+  .sub { color:var(--ink-2); margin-top:10px; font-size:15.5px; line-height:1.6; max-width:640px; }
+
+  .card { background:var(--surface); border:1px solid var(--hairline); border-radius:12px; padding:22px; margin-top:22px; }
+  .card h2 { font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2); font-weight:700; margin-bottom:14px; }
+
+  /* import */
+  .drop { border:1.5px dashed rgba(216,166,87,.45); border-radius:10px; padding:26px 20px; text-align:center; cursor:pointer; transition:background .15s,border-color .15s; }
+  .drop:hover, .drop.over { background:rgba(216,166,87,.06); border-color:var(--gold); }
+  .drop b { color:var(--gold); }
+  .drop p { color:var(--ink-2); font-size:14px; margin-top:6px; }
+  .howto { color:var(--muted); font-size:13px; line-height:1.7; margin-top:14px; }
+  .howto b { color:var(--ink-2); font-weight:600; }
+  .import-msg { margin-top:12px; font-size:14px; color:var(--ink-2); display:none; }
+  .import-msg.ok { color:var(--gain); display:block; }
+  .import-msg.err { color:var(--loss); display:block; }
+
+  /* stat tiles */
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-top:22px; }
+  .tile { background:var(--surface); border:1px solid var(--hairline); border-radius:12px; padding:16px 18px; }
+  .tile .lb { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .tile .v { font-size:24px; font-weight:700; margin-top:6px; }
+  .tile.hero .v { font-size:clamp(30px,4vw,44px); font-weight:800; }
+  @media (min-width:640px) { .tile.hero { grid-column:span 2; } }
+  @media (min-width:980px) { .tiles { grid-template-columns:repeat(7,1fr); } }
+  .tile .d { font-size:13px; color:var(--ink-2); margin-top:4px; }
+  .pos { color:var(--gain); } .neg { color:var(--loss); }
+
+  /* chart */
+  .chart-wrap { position:relative; margin-top:6px; }
+  #chart { display:block; width:100%; }
+  .tip { position:absolute; pointer-events:none; background:#082230; border:1px solid var(--hairline); border-radius:8px; padding:8px 12px; font-size:13px; line-height:1.55; display:none; z-index:5; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,.35); }
+  .tip .t-date { color:var(--muted); font-size:12px; }
+  .empty-note { color:var(--muted); font-size:14px; padding:26px 0; text-align:center; }
+
+  /* filters */
+  .filters { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+  .filters input, .filters select {
+    background:var(--surface-2); color:var(--ink); border:1px solid var(--hairline); border-radius:8px;
+    padding:9px 12px; font-family:inherit; font-size:14px; outline:none;
+  }
+  .filters input:focus, .filters select:focus { border-color:var(--gold); }
+  .filters input { width:170px; }
+
+  /* tables */
+  .tbl-scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:14px; min-width:760px; }
+  th { text-align:right; color:var(--muted); font-size:12px; letter-spacing:.06em; text-transform:uppercase; font-weight:600; padding:8px 10px; border-bottom:1px solid var(--hairline); cursor:pointer; user-select:none; white-space:nowrap; }
+  th.l, td.l { text-align:left; }
+  th .arr { color:var(--gold); }
+  td { padding:10px; text-align:right; border-bottom:1px solid rgba(159,195,194,.08); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tbody tr:hover { background:var(--surface-2); }
+  .sym { font-weight:700; }
+  .kind { color:var(--muted); font-size:12px; margin-left:6px; }
+  .side-tag { font-size:11px; border:1px solid var(--hairline); border-radius:99px; padding:2px 8px; color:var(--ink-2); }
+
+  .note { color:var(--muted); font-size:13px; margin-top:12px; line-height:1.6; }
+  .warn { color:#e0b34d; }
+
+  /* data controls */
+  .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  button.btn { background:transparent; color:var(--gold); border:1.5px solid var(--gold); padding:9px 20px; border-radius:999px; font-weight:700; font-size:13.5px; font-family:inherit; cursor:pointer; transition:background .15s,color .15s; }
+  button.btn:hover { background:var(--gold); color:var(--page); }
+  button.btn.danger { color:var(--loss); border-color:var(--loss); }
+  button.btn.danger:hover { background:var(--loss); color:var(--page); }
+  .controls .meta { color:var(--muted); font-size:13px; margin-left:auto; }
+
+  footer { border-top:1px solid var(--hairline); padding:26px 24px; text-align:center; color:var(--muted); font-size:13px; }
+  footer a { color:var(--gold); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="waves"></div>
+
+<nav>
+  <div class="logo">Fernandez<span>zzyyy</span> · Journal</div>
+  <a href="/">← back to site</a>
+</nav>
+
+<main>
+  <h1>Trading <em>Journal</em></h1>
+  <p class="sub">Every Robinhood trade — shares, profit in $ and %, and how long you held. Import your Robinhood report and this page remembers it. <b>Your data never leaves this browser.</b></p>
+
+  <!-- IMPORT -->
+  <section class="card">
+    <h2>Import trades</h2>
+    <div class="drop" id="drop">
+      <div><b>Drop your Robinhood CSV here</b> or click to choose a file</div>
+      <p>Re-import anytime — overlapping reports merge without duplicates.</p>
+      <input type="file" id="file" accept=".csv,text/csv" multiple hidden>
+    </div>
+    <div class="import-msg" id="importMsg"></div>
+    <p class="howto"><b>How to get the CSV:</b> In Robinhood, tap your <b>Account</b> icon → menu (☰) → <b>Reports and statements</b> → <b>Reports</b> → <b>Generate new report</b>. Pick a date range covering your trades, then download the CSV it emails/gives you and drop it above. First time? Generate one from your account's start date so buys match up with sells.</p>
+  </section>
+
+  <!-- STATS -->
+  <div class="tiles" id="tiles"></div>
+
+  <!-- EQUITY CURVE -->
+  <section class="card">
+    <h2>Cumulative realized P&amp;L</h2>
+    <div class="chart-wrap">
+      <svg id="chart" height="280" role="img" aria-label="Cumulative realized profit and loss over time"></svg>
+      <div class="tip" id="tip"></div>
+    </div>
+  </section>
+
+  <!-- CLOSED TRADES -->
+  <section class="card">
+    <h2>Closed trades</h2>
+    <div class="filters">
+      <input id="fSym" type="search" placeholder="Search symbol…">
+      <select id="fType"><option value="">All types</option><option value="stock">Stocks</option><option value="option">Options</option></select>
+      <select id="fRes"><option value="">Wins &amp; losses</option><option value="win">Wins only</option><option value="loss">Losses only</option></select>
+    </div>
+    <div class="tbl-scroll">
+      <table id="tradesTbl">
+        <thead><tr>
+          <th class="l" data-k="exit">Closed</th>
+          <th class="l" data-k="sym">Symbol</th>
+          <th class="l" data-k="side">Side</th>
+          <th data-k="qty">Qty</th>
+          <th data-k="entryPx">Entry</th>
+          <th data-k="exitPx">Exit</th>
+          <th data-k="pnl">P&amp;L $</th>
+          <th data-k="pct">P&amp;L %</th>
+          <th data-k="hold">Held</th>
+        </tr></thead>
+        <tbody id="tradesBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-note" id="tradesEmpty" style="display:none">No closed trades yet — import a Robinhood report above.</div>
+    <p class="note" id="unmatchedNote" style="display:none"></p>
+  </section>
+
+  <!-- OPEN POSITIONS -->
+  <section class="card">
+    <h2>Open positions</h2>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr>
+          <th class="l">Symbol</th><th class="l">Side</th><th>Qty</th><th>Avg cost</th><th>Cost basis</th><th class="l">Opened</th>
+        </tr></thead>
+        <tbody id="openBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-note" id="openEmpty" style="display:none">Nothing open (or no data imported yet).</div>
+  </section>
+
+  <!-- DATA -->
+  <section class="card">
+    <h2>Your data</h2>
+    <div class="controls">
+      <button class="btn" id="btnExport">Export backup</button>
+      <button class="btn" id="btnImportBk">Restore backup</button>
+      <button class="btn" id="btnSample">Load sample data</button>
+      <button class="btn danger" id="btnClear">Clear everything</button>
+      <input type="file" id="bkFile" accept=".json,application/json" hidden>
+      <span class="meta" id="dataMeta"></span>
+    </div>
+    <p class="note">Saved in this browser only (localStorage) — it survives closing the tab, but not clearing site data or switching devices. Export a backup now and then, or to move to another device.</p>
+  </section>
+</main>
+
+<footer>© 2026 Fernandezzzyyy · Private trading journal · <a href="/">fernandezzzyyy757.github.io</a></footer>
+
+<script>
+'use strict';
+/* ============================== storage ============================== */
+const LS_KEY = 'rhJournal.v1';
+let store = load();
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(LS_KEY)); if (s && s.v === 1 && s.acts) return s; } catch (e) {}
+  return { v: 1, acts: {} }; // acts: sig -> {d,i,ds,c,q,p,a,n}
+}
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(store)); }
+
+/* ============================== csv parsing ============================== */
+function parseCSV(text) {
+  const rows = []; let row = [], cell = '', inQ = false;
+  for (let k = 0; k < text.length; k++) {
+    const ch = text[k];
+    if (inQ) {
+      if (ch === '"') { if (text[k+1] === '"') { cell += '"'; k++; } else inQ = false; }
+      else cell += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[k+1] === '\n') k++;
+      row.push(cell); cell = '';
+      if (row.some(c => c.trim() !== '')) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some(c => c.trim() !== '')) rows.push(row);
+  return rows;
+}
+function money(s) {
+  if (s == null) return null;
+  s = String(s).trim(); if (!s) return null;
+  const neg = /^\(.*\)$/.test(s);
+  const n = parseFloat(s.replace(/[($,)%\s]/g, ''));
+  if (isNaN(n)) return null;
+  return neg ? -n : n;
+}
+function parseDate(s) { // M/D/YYYY -> ISO
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s).trim());
+  if (!m) return null;
+  return m[3] + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0');
+}
+const OPEN_LONG = { 'Buy': 1, 'BTO': 1 }, CLOSE_LONG = { 'Sell': 1, 'STC': 1 };
+const OPEN_SHORT = { 'STO': 1 }, CLOSE_SHORT = { 'BTC': 1 };
+const EXPIRE = { 'OEXP': 1, 'OASGN': 1, 'OEXCS': 1 };
+const TRADE_CODES = Object.assign({}, OPEN_LONG, CLOSE_LONG, OPEN_SHORT, CLOSE_SHORT, EXPIRE);
+
+function ingestCSV(text) {
+  const rows = parseCSV(text);
+  let hi = -1, cols = null;
+  for (let r = 0; r < rows.length; r++) {
+    const low = rows[r].map(c => c.trim().toLowerCase());
+    if (low.includes('activity date') && low.includes('trans code')) {
+      hi = r;
+      cols = {
+        date: low.indexOf('activity date'), inst: low.indexOf('instrument'),
+        desc: low.indexOf('description'), code: low.indexOf('trans code'),
+        qty: low.indexOf('quantity'), price: low.indexOf('price'), amt: low.indexOf('amount')
+      };
+      break;
+    }
+  }
+  if (hi < 0) throw new Error('That doesn’t look like a Robinhood report — no "Activity Date"/"Trans Code" header found.');
+  const fileCounts = {}; let trades = 0, other = 0;
+  for (let r = hi + 1; r < rows.length; r++) {
+    const row = rows[r];
+    const code = (row[cols.code] || '').trim();
+    if (!code) continue;
+    const iso = parseDate(row[cols.date]);
+    if (!iso) continue;
+    const act = {
+      d: iso,
+      i: (row[cols.inst] || '').trim(),
+      ds: (row[cols.desc] || '').trim(),
+      c: code,
+      q: money(row[cols.qty]),
+      p: money(row[cols.price]),
+      a: money(row[cols.amt])
+    };
+    if (TRADE_CODES[code]) trades++; else if (code === 'CDIV') other++; else { other++; }
+    const sig = [act.d, act.c, act.i, act.ds, act.q, act.p, act.a].join('§');
+    fileCounts[sig] = fileCounts[sig] ? { act, n: fileCounts[sig].n + 1 } : { act, n: 1 };
+  }
+  // merge: per signature keep max(count) so overlapping reports never double-count
+  let added = 0;
+  for (const sig in fileCounts) {
+    const cur = store.acts[sig];
+    const inc = fileCounts[sig];
+    if (!cur) { store.acts[sig] = Object.assign({}, inc.act, { n: inc.n }); added += inc.n; }
+    else if (inc.n > cur.n) { added += inc.n - cur.n; cur.n = inc.n; }
+  }
+  return { added, trades, other };
+}
+
+/* ============================== trade engine (FIFO) ============================== */
+function optionInfo(desc) {
+  const m = /^([A-Z][A-Z0-9.]*)\s+(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(Call|Put)\s+\$([\d,]+(?:\.\d+)?)/.exec(desc || '');
+  if (!m) return null;
+  return { ticker: m[1], exp: m[2] + '/' + m[3] + '/' + String(m[4]).slice(2), cp: m[5][0], strike: m[6] };
+}
+function computeAll() {
+  const acts = [];
+  for (const sig in store.acts) { const a = store.acts[sig]; for (let k = 0; k < a.n; k++) acts.push(a); }
+  // date asc; on the same date process opens before closes (intraday order isn't in the report)
+  const rank = c => OPEN_LONG[c] || OPEN_SHORT[c] ? 0 : 1;
+  acts.sort((x, y) => x.d < y.d ? -1 : x.d > y.d ? 1 : rank(x.c) - rank(y.c));
+
+  const pos = {}; // key -> {long:[], short:[]}
+  const closed = [], unmatched = [];
+  let dividends = 0, ignored = 0, expiredNotes = 0;
+
+  for (const a of acts) {
+    const c = a.c;
+    if (c === 'CDIV') { dividends += (a.a || 0); continue; }
+    if (!TRADE_CODES[c]) { ignored++; continue; }
+
+    const opt = optionInfo(a.ds);
+    const isOpt = !!opt;
+    const mult = isOpt ? 100 : 1;
+    const key = isOpt ? a.i + '|' + a.ds : (a.i || a.ds);
+    const qty = Math.abs(a.q || 0);
+    if (!qty) { ignored++; continue; }
+    const cash = a.a != null && a.a !== 0 ? Math.abs(a.a) : (a.p != null ? qty * a.p * mult : 0);
+    if (!pos[key]) pos[key] = { long: [], short: [], inst: a.i, desc: a.ds, opt, mult };
+
+    if (OPEN_LONG[c]) pos[key].long.push({ qty, cash, date: a.d });
+    else if (OPEN_SHORT[c]) pos[key].short.push({ qty, cash, date: a.d });
+    else if (CLOSE_LONG[c] || CLOSE_SHORT[c] || EXPIRE[c]) {
+      let side = CLOSE_LONG[c] ? 'long' : CLOSE_SHORT[c] ? 'short' : (pos[key].long.length ? 'long' : 'short');
+      const isExp = !!EXPIRE[c];
+      if (isExp) expiredNotes++;
+      const book = pos[key][side];
+      let remaining = qty, matchedQty = 0, matchedCash = 0, firstDate = null;
+      while (remaining > 1e-9 && book.length) {
+        const lot = book[0];
+        const take = Math.min(remaining, lot.qty);
+        matchedCash += lot.cash * (take / lot.qty);
+        lot.cash -= lot.cash * (take / lot.qty);
+        lot.qty -= take; remaining -= take; matchedQty += take;
+        if (!firstDate) firstDate = lot.date;
+        if (lot.qty <= 1e-9) book.shift();
+      }
+      if (matchedQty > 1e-9) {
+        const closeCash = isExp ? 0 : cash * (matchedQty / qty);
+        const pnl = side === 'long' ? closeCash - matchedCash : matchedCash - closeCash;
+        const basis = matchedCash || closeCash;
+        closed.push({
+          key, inst: a.i, opt, mult,
+          side, qty: matchedQty,
+          entryPx: matchedCash / (matchedQty * mult),
+          exitPx: closeCash / (matchedQty * mult),
+          pnl, pct: basis ? pnl / basis * 100 : 0,
+          entry: firstDate, exit: a.d,
+          hold: Math.round((new Date(a.d) - new Date(firstDate)) / 86400000),
+          expired: isExp
+        });
+      }
+      if (remaining > 1e-9 && !isExp) {
+        unmatched.push({ inst: a.i, desc: a.ds, code: c, qty: remaining, date: a.d });
+      }
+    }
+  }
+
+  const open = [];
+  for (const key in pos) {
+    for (const side of ['long', 'short']) {
+      let q = 0, cash = 0, first = null;
+      for (const lot of pos[key][side]) { q += lot.qty; cash += lot.cash; if (!first) first = lot.date; }
+      if (q > 1e-9) open.push({ key, inst: pos[key].inst, opt: pos[key].opt, mult: pos[key].mult, side, qty: q, cash, avg: cash / (q * pos[key].mult), opened: first });
+    }
+  }
+  open.sort((a, b) => a.opened < b.opened ? 1 : -1);
+  closed.sort((a, b) => a.exit < b.exit ? 1 : a.exit > b.exit ? -1 : 0);
+  return { closed, open, unmatched, dividends, ignored, expiredNotes };
+}
+
+/* ============================== formatting ============================== */
+const fmt$ = (v, sign) => (v < 0 ? '-' : sign && v > 0 ? '+' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPx = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPct = v => (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+const fmtQty = v => v % 1 ? v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '') : String(v);
+function fmtHold(d) { if (d <= 0) return 'Same day'; if (d === 1) return '1 day'; if (d < 60) return d + ' days'; return (d / 30.44).toFixed(1) + ' mo'; }
+function fmtDate(iso) { const [y, m, d] = iso.split('-'); return +m + '/' + +d + '/' + y.slice(2); }
+function symHTML(t) {
+  if (t.opt) return '<span class="sym">' + t.opt.ticker + '</span><span class="kind">$' + t.opt.strike + (t.opt.cp === 'C' ? 'C' : 'P') + ' ' + t.opt.exp + '</span>';
+  return '<span class="sym">' + esc(t.inst) + '</span>';
+}
+const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+
+/* ============================== render ============================== */
+let DATA = { closed: [], open: [], unmatched: [], dividends: 0, ignored: 0, expiredNotes: 0 };
+let sortK = 'exit', sortDir = -1;
+
+function filteredTrades() {
+  const q = document.getElementById('fSym').value.trim().toUpperCase();
+  const ty = document.getElementById('fType').value;
+  const rs = document.getElementById('fRes').value;
+  return DATA.closed.filter(t => {
+    if (q && !((t.opt ? t.opt.ticker : t.inst) || '').toUpperCase().includes(q)) return false;
+    if (ty === 'stock' && t.opt) return false;
+    if (ty === 'option' && !t.opt) return false;
+    if (rs === 'win' && t.pnl <= 0) return false;
+    if (rs === 'loss' && t.pnl >= 0) return false;
+    return true;
+  });
+}
+
+function renderAll() {
+  DATA = computeAll();
+  renderTiles(); renderTrades(); renderOpen(); renderChart(); renderMeta();
+}
+function renderTiles() {
+  const T = filteredTrades();
+  const total = T.reduce((s, t) => s + t.pnl, 0);
+  const wins = T.filter(t => t.pnl > 0).length, losses = T.filter(t => t.pnl < 0).length;
+  const winRate = wins + losses ? wins / (wins + losses) * 100 : null;
+  const avgHold = T.length ? T.reduce((s, t) => s + t.hold, 0) / T.length : null;
+  const best = T.length ? T.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
+  const worst = T.length ? T.reduce((a, b) => a.pnl < b.pnl ? a : b) : null;
+  const cls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+  let h = '<div class="tile hero"><div class="lb">Total realized P&L</div><div class="v ' + cls(total) + '">' + (T.length ? fmt$(total, true) : '—') + '</div><div class="d">' + T.length + ' closed trade' + (T.length === 1 ? '' : 's') + '</div></div>';
+  h += tile('Win rate', winRate == null ? '—' : winRate.toFixed(0) + '%', wins + 'W / ' + losses + 'L');
+  h += tile('Avg hold', avgHold == null ? '—' : fmtHold(Math.round(avgHold)), '');
+  h += tile('Best trade', best ? fmt$(best.pnl, true) : '—', best ? (best.opt ? best.opt.ticker : best.inst) : '', best ? 'pos' : '');
+  h += tile('Worst trade', worst ? fmt$(worst.pnl, true) : '—', worst ? (worst.opt ? worst.opt.ticker : worst.inst) : '', worst && worst.pnl < 0 ? 'neg' : '');
+  h += tile('Dividends', DATA.dividends ? fmt$(DATA.dividends) : '—', '');
+  document.getElementById('tiles').innerHTML = h;
+  function tile(lb, v, d, vc) { return '<div class="tile"><div class="lb">' + lb + '</div><div class="v ' + (vc || '') + '">' + v + '</div>' + (d ? '<div class="d">' + esc(d) + '</div>' : '') + '</div>'; }
+}
+function renderTrades() {
+  const T = filteredTrades().slice();
+  const dir = sortDir;
+  const val = t => sortK === 'sym' ? (t.opt ? t.opt.ticker : t.inst) : t[sortK];
+  T.sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
+  document.querySelectorAll('#tradesTbl th').forEach(th => {
+    th.innerHTML = th.innerHTML.replace(/\s*<span class="arr">.*<\/span>/, '');
+    if (th.dataset.k === sortK) th.innerHTML += ' <span class="arr">' + (dir < 0 ? '↓' : '↑') + '</span>';
+  });
+  const body = document.getElementById('tradesBody');
+  body.innerHTML = T.map(t => {
+    const c = t.pnl > 0 ? 'pos' : t.pnl < 0 ? 'neg' : '';
+    return '<tr><td class="l">' + fmtDate(t.exit) + '</td>' +
+      '<td class="l">' + symHTML(t) + (t.expired ? '<span class="kind">expired</span>' : '') + '</td>' +
+      '<td class="l"><span class="side-tag">' + (t.side === 'long' ? 'Long' : 'Short') + '</span></td>' +
+      '<td>' + fmtQty(t.qty) + '</td>' +
+      '<td>' + fmtPx(t.entryPx) + '</td>' +
+      '<td>' + fmtPx(t.exitPx) + '</td>' +
+      '<td class="' + c + '">' + fmt$(t.pnl, true) + '</td>' +
+      '<td class="' + c + '">' + fmtPct(t.pct) + '</td>' +
+      '<td>' + fmtHold(t.hold) + '</td></tr>';
+  }).join('');
+  document.getElementById('tradesEmpty').style.display = T.length ? 'none' : 'block';
+  const un = document.getElementById('unmatchedNote');
+  if (DATA.unmatched.length) {
+    const syms = [...new Set(DATA.unmatched.map(u => u.inst || u.desc))].slice(0, 6).join(', ');
+    un.innerHTML = '<span class="warn">⚠ ' + DATA.unmatched.length + ' sell(s) couldn’t be matched to a buy</span> (' + esc(syms) + ') — the purchase is probably in an older report. Generate a report going further back and import it; everything merges.';
+    un.style.display = 'block';
+  } else un.style.display = 'none';
+}
+function renderOpen() {
+  const body = document.getElementById('openBody');
+  body.innerHTML = DATA.open.map(o =>
+    '<tr><td class="l">' + symHTML(o) + '</td>' +
+    '<td class="l"><span class="side-tag">' + (o.side === 'long' ? 'Long' : 'Short') + '</span></td>' +
+    '<td>' + fmtQty(o.qty) + '</td>' +
+    '<td>' + fmtPx(o.avg) + '</td>' +
+    '<td>' + fmt$(o.cash) + '</td>' +
+    '<td class="l">' + fmtDate(o.opened) + '</td></tr>'
+  ).join('');
+  document.getElementById('openEmpty').style.display = DATA.open.length ? 'none' : 'block';
+}
+function renderMeta() {
+  let n = 0; for (const s in store.acts) n += store.acts[s].n;
+  document.getElementById('dataMeta').textContent = n ? n + ' records stored · ' + DATA.closed.length + ' closed trades' : 'No data stored yet';
+}
+
+/* ============================== equity curve ============================== */
+function chartPoints() {
+  const T = filteredTrades().slice().sort((a, b) => a.exit < b.exit ? -1 : 1);
+  const byDay = new Map();
+  for (const t of T) byDay.set(t.exit, (byDay.get(t.exit) || 0) + t.pnl);
+  let cum = 0; const pts = [];
+  for (const [d, p] of byDay) { cum += p; pts.push({ d, day: p, cum }); }
+  return pts;
+}
+function niceTicks(min, max, n) {
+  const span = max - min || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || 10 * mag;
+  const t = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) t.push(v);
+  return t;
+}
+let CHART = null;
+function renderChart() {
+  const svg = document.getElementById('chart');
+  const pts = chartPoints();
+  svg.innerHTML = '';
+  const W = svg.clientWidth || svg.parentNode.clientWidth || 800, H = 280;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  if (pts.length === 0) { CHART = null; svg.innerHTML = '<text x="' + W / 2 + '" y="' + H / 2 + '" fill="#69909a" font-size="14" text-anchor="middle" font-family="Manrope,sans-serif">Your equity curve will draw here once trades are imported.</text>'; return; }
+  const M = { l: 62, r: 24, t: 18, b: 30 };
+  const xs = pts.map(p => new Date(p.d).getTime());
+  let x0 = Math.min(...xs), x1 = Math.max(...xs);
+  if (x0 === x1) { x0 -= 86400000; x1 += 86400000; }
+  const ys = pts.map(p => p.cum);
+  let y0 = Math.min(0, ...ys), y1 = Math.max(0, ...ys);
+  const pad = (y1 - y0) * 0.08 || 1; y0 -= pad; y1 += pad;
+  const X = t => M.l + (t - x0) / (x1 - x0) * (W - M.l - M.r);
+  const Y = v => M.t + (y1 - v) / (y1 - y0) * (H - M.t - M.b);
+  let g = '';
+  // hairline gridlines + y ticks (clean numbers)
+  for (const tv of niceTicks(y0, y1, 5)) {
+    g += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + Y(tv) + '" y2="' + Y(tv) + '" stroke="rgba(159,195,194,.14)" stroke-width="1"/>';
+    g += '<text x="' + (M.l - 8) + '" y="' + (Y(tv) + 4) + '" fill="#69909a" font-size="11" text-anchor="end" font-family="Manrope,sans-serif" style="font-variant-numeric:tabular-nums">' + (tv < 0 ? '-' : '') + '$' + Math.abs(tv).toLocaleString() + '</text>';
+  }
+  // zero baseline
+  if (y0 < 0 && y1 > 0) g += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + Y(0) + '" y2="' + Y(0) + '" stroke="rgba(159,195,194,.35)" stroke-width="1"/>';
+  // x labels (first / middle / last)
+  const idxs = pts.length > 2 ? [0, Math.floor(pts.length / 2), pts.length - 1] : pts.map((_, i2) => i2);
+  for (const i2 of [...new Set(idxs)]) g += '<text x="' + X(xs[i2]) + '" y="' + (H - 8) + '" fill="#69909a" font-size="11" text-anchor="middle" font-family="Manrope,sans-serif">' + fmtDate(pts[i2].d) + '</text>';
+  // area wash to zero + 2px line
+  const zeroY = Y(Math.max(y0, Math.min(y1, 0)));
+  const lineD = pts.map((p, i2) => (i2 ? 'L' : 'M') + X(xs[i2]).toFixed(1) + ' ' + Y(p.cum).toFixed(1)).join(' ');
+  g += '<path d="' + lineD + ' L' + X(xs[xs.length - 1]).toFixed(1) + ' ' + zeroY + ' L' + X(xs[0]).toFixed(1) + ' ' + zeroY + ' Z" fill="#b8842f" opacity=".1"/>';
+  g += '<path d="' + lineD + '" fill="none" stroke="#b8842f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  // end dot (8px, 2px surface ring) + direct end label
+  const lx = X(xs[xs.length - 1]), lp = pts[pts.length - 1];
+  g += '<circle cx="' + lx + '" cy="' + Y(lp.cum) + '" r="4" fill="#b8842f" stroke="#0b2b3a" stroke-width="2"/>';
+  const anchor = lx > W - 90 ? 'end' : 'start', tx = lx > W - 90 ? lx - 8 : lx + 8;
+  g += '<text x="' + tx + '" y="' + (Y(lp.cum) - 8) + '" fill="#eef6f4" font-size="12" font-weight="700" text-anchor="' + anchor + '" font-family="Manrope,sans-serif">' + fmt$(lp.cum, true) + '</text>';
+  // crosshair + hover dot (hidden until hover)
+  g += '<line id="xh" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="rgba(159,195,194,.4)" stroke-width="1" visibility="hidden"/>';
+  g += '<circle id="hdot" r="4" fill="#b8842f" stroke="#0b2b3a" stroke-width="2" visibility="hidden"/>';
+  g += '<rect x="' + M.l + '" y="' + M.t + '" width="' + (W - M.l - M.r) + '" height="' + (H - M.t - M.b) + '" fill="transparent" id="hover"/>';
+  svg.innerHTML = g;
+  CHART = { pts, xs, X, Y };
+  const hover = svg.querySelector('#hover'), xh = svg.querySelector('#xh'), hdot = svg.querySelector('#hdot'), tip = document.getElementById('tip');
+  hover.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect();
+    const mx = (e.clientX - r.left) * (W / r.width);
+    let bi = 0, bd = Infinity;
+    for (let i2 = 0; i2 < pts.length; i2++) { const d = Math.abs(X(xs[i2]) - mx); if (d < bd) { bd = d; bi = i2; } }
+    const p = pts[bi], px = X(xs[bi]), py = Y(p.cum);
+    xh.setAttribute('x1', px); xh.setAttribute('x2', px); xh.setAttribute('visibility', 'visible');
+    hdot.setAttribute('cx', px); hdot.setAttribute('cy', py); hdot.setAttribute('visibility', 'visible');
+    tip.innerHTML = '<div class="t-date">' + fmtDate(p.d) + '</div>Total: <b class="' + (p.cum >= 0 ? 'pos' : 'neg') + '">' + fmt$(p.cum, true) + '</b><br>Day: <b class="' + (p.day >= 0 ? 'pos' : 'neg') + '">' + fmt$(p.day, true) + '</b>';
+    tip.style.display = 'block';
+    const wrap = svg.parentNode.getBoundingClientRect();
+    let tl = px / W * wrap.width + 14; if (tl + tip.offsetWidth > wrap.width) tl = px / W * wrap.width - tip.offsetWidth - 14;
+    tip.style.left = tl + 'px'; tip.style.top = Math.max(0, py / H * wrap.height - 30) + 'px';
+  });
+  hover.addEventListener('mouseleave', () => { xh.setAttribute('visibility', 'hidden'); hdot.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
+}
+window.addEventListener('resize', () => renderChart());
+
+/* ============================== import / controls ============================== */
+const drop = document.getElementById('drop'), fileIn = document.getElementById('file'), msg = document.getElementById('importMsg');
+drop.addEventListener('click', () => fileIn.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); handleFiles(e.dataTransfer.files); });
+fileIn.addEventListener('change', () => { handleFiles(fileIn.files); fileIn.value = ''; });
+async function handleFiles(files) {
+  let added = 0, errs = [];
+  for (const f of files) {
+    try { added += ingestCSV(await f.text()).added; }
+    catch (e) { errs.push(f.name + ': ' + e.message); }
+  }
+  save(); renderAll();
+  msg.className = 'import-msg ' + (errs.length ? 'err' : 'ok');
+  msg.textContent = errs.length ? errs.join(' · ') : (added ? '✓ Imported ' + added + ' new record' + (added === 1 ? '' : 's') + '.' : '✓ File read — no new records (already imported).');
+}
+document.getElementById('btnExport').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(store)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'trading-journal-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+const bkFile = document.getElementById('bkFile');
+document.getElementById('btnImportBk').addEventListener('click', () => bkFile.click());
+bkFile.addEventListener('change', async () => {
+  try {
+    const s = JSON.parse(await bkFile.files[0].text());
+    if (!s || s.v !== 1 || !s.acts) throw new Error('not a journal backup');
+    for (const sig in s.acts) { const cur = store.acts[sig]; if (!cur || s.acts[sig].n > cur.n) store.acts[sig] = s.acts[sig]; }
+    save(); renderAll();
+    msg.className = 'import-msg ok'; msg.textContent = '✓ Backup restored and merged.';
+  } catch (e) { msg.className = 'import-msg err'; msg.textContent = 'Backup restore failed: ' + e.message; }
+  bkFile.value = '';
+});
+document.getElementById('btnClear').addEventListener('click', () => {
+  if (confirm('Delete ALL journal data from this browser? Export a backup first if you want to keep it.')) {
+    store = { v: 1, acts: {} }; save(); renderAll();
+    msg.className = 'import-msg ok'; msg.textContent = 'All data cleared.';
+  }
+});
+document.getElementById('btnSample').addEventListener('click', () => {
+  ingestCSV(SAMPLE); save(); renderAll();
+  msg.className = 'import-msg ok'; msg.textContent = '✓ Sample data loaded — use “Clear everything” to remove it before importing your real report.';
+});
+for (const id of ['fSym', 'fType', 'fRes']) document.getElementById(id).addEventListener('input', () => { renderTiles(); renderTrades(); renderChart(); });
+document.querySelectorAll('#tradesTbl th').forEach(th => th.addEventListener('click', () => {
+  const k = th.dataset.k; if (!k) return;
+  if (sortK === k) sortDir *= -1; else { sortK = k; sortDir = -1; }
+  renderTrades();
+}));
+
+const SAMPLE = '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"\n' +
+'"6/26/2025","6/26/2025","6/27/2025","AAPL","Apple","Sell","5","$205.10","$1,025.50"\n' +
+'"6/20/2025","6/20/2025","6/23/2025","AAPL","Apple","Buy","5","$198.00","($990.00)"\n' +
+'"6/18/2025","6/18/2025","6/18/2025","TSLA","TSLA 6/27/2025 Call $340.00","STC","1","$4.10","$410.00"\n' +
+'"6/16/2025","6/16/2025","6/16/2025","TSLA","TSLA 6/27/2025 Call $340.00","BTO","1","$2.55","($255.00)"\n' +
+'"6/12/2025","6/12/2025","6/13/2025","NVDA","NVIDIA","Sell","2","$118.00","$236.00"\n' +
+'"6/10/2025","6/10/2025","6/11/2025","NVDA","NVIDIA","Buy","3","$120.00","($360.00)"\n' +
+'"6/13/2025","6/13/2025","6/13/2025","SPY","SPY 6/13/2025 Put $600.00","STC","2","$0.85","$170.00"\n' +
+'"6/13/2025","6/13/2025","6/13/2025","SPY","SPY 6/13/2025 Put $600.00","BTO","2","$1.40","($280.00)"\n' +
+'"6/25/2025","6/25/2025","6/26/2025","SOFI","SoFi Technologies","CDIV","","","$1.23"\n' +
+'"6/30/2025","6/30/2025","6/30/2025","AMD","AMD 6/27/2025 Call $150.00","OEXP","1","",""\n' +
+'"6/24/2025","6/24/2025","6/24/2025","AMD","AMD 6/27/2025 Call $150.00","BTO","1","$0.90","($90.00)"\n' +
+'"7/1/2025","7/1/2025","7/2/2025","HOOD","Robinhood Markets","Buy","10","$92.40","($924.00)"\n';
+
+renderAll();
+</script>
+</body>
+</html>
