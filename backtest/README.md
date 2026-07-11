@@ -18,6 +18,29 @@ python backtest/mnq_footprint_backtest.py --synthetic --days 130
 python backtest/mnq_footprint_backtest.py --csv path/to/mnq_1m.csv --tz UTC
 ```
 
+## Getting data
+
+Two pullers write `data/mnq_1m.csv` in the expected format (naive UTC
+timestamps; run the backtest with `--tz UTC`):
+
+```bash
+# Tradovate (same credentials as an API webhook bot; needs CME data + API access)
+pip install requests websockets
+export TRADOVATE_USER=... TRADOVATE_PASS=... TRADOVATE_CID=... TRADOVATE_SEC=...
+python backtest/pull_tradovate.py            # pages back until end-of-history
+
+# Databento fallback (GLBX.MDP3, MNQ continuous front month, ohlcv-1m)
+pip install databento
+export DATABENTO_API_KEY=db-XXXX
+python backtest/pull_databento.py            # cost preflight + confirm, ~2y default
+```
+
+The Tradovate puller reports the downloaded span and warns if it is under 60
+days (too shallow for a meaningful 70/30 split — use the Databento puller
+instead). It also preserves Tradovate's real `up_volume`/`down_volume` split
+in extra columns; the backtest ignores them today but they could replace the
+tick-rule delta proxy with real delta.
+
 CSV format: `timestamp,open,high,low,close,volume`, 1-minute bars. Naive
 timestamps are localized with `--tz` (default UTC) and converted to ET
 internally; tz-aware timestamps are used as-is. Data should ideally cover the
