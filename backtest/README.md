@@ -38,8 +38,16 @@ python backtest/pull_databento.py            # cost preflight + confirm, ~2y def
 The Tradovate puller reports the downloaded span and warns if it is under 60
 days (too shallow for a meaningful 70/30 split — use the Databento puller
 instead). It also preserves Tradovate's real `up_volume`/`down_volume` split
-in extra columns; the backtest ignores them today but they could replace the
-tick-rule delta proxy with real delta.
+in extra columns; when those columns are present the backtest uses **real
+delta** (`up_volume - down_volume`) for the C/D filters and prints
+`delta source: real up/down volume split`; otherwise it falls back to the
+tick-rule proxy.
+
+> **Remote-session note:** Claude Code on the web environments with a
+> restricted network policy cannot reach `tradovateapi.com`, `databento.com`
+> or Yahoo (CONNECT 403). Run the pullers on a local machine and commit the
+> CSV to the branch (`git add -f data/mnq_1m.csv` — `data/` is gitignored),
+> or allow those domains in the environment's network settings.
 
 CSV format: `timestamp,open,high,low,close,volume`, 1-minute bars. Naive
 timestamps are localized with `--tz` (default UTC) and converted to ET
@@ -118,6 +126,15 @@ Long side shown; shorts are fully mirrored.
 (`--synthetic --days 130 --seed 7`). As expected on synthetic data with no
 injected edge, every variant's CI includes zero — a useful null test that the
 harness doesn't manufacture significance.
+
+## Tests
+
+`python backtest/test_backtest.py` (pytest-compatible) locks in the rule
+invariants: entries only inside the NY AM/PM windows, flat by 16:55 ET, max
+3 trades/day, no overlapping positions, stop/T1/T2 geometry per side,
+commissions applied, filters only narrow the trade set, funnel accounting,
+delta-source selection, tick-rule carry, profile POC/VA/LVN detection,
+bootstrap CI sanity, and loader timezone conversion.
 
 ## Knobs
 

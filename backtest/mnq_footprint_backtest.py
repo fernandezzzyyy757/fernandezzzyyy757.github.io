@@ -128,6 +128,11 @@ def load_csv(path: str, tz: str) -> pd.DataFrame:
         "close": pd.to_numeric(df[cols["close"]]),
         "volume": pd.to_numeric(df[cols["volume"]]).fillna(0.0),
     })
+    # real uptick/downtick split (e.g. from pull_tradovate.py) replaces the
+    # tick-rule delta proxy when present
+    if "up_volume" in cols and "down_volume" in cols:
+        out["up_volume"] = pd.to_numeric(df[cols["up_volume"]]).fillna(0.0)
+        out["down_volume"] = pd.to_numeric(df[cols["down_volume"]]).fillna(0.0)
     ts = pd.to_datetime(df[ts_col], utc=False)
     if ts.dt.tz is None:
         ts = ts.dt.tz_localize(tz)
@@ -258,7 +263,12 @@ def prepare(df1: pd.DataFrame, cfg: Config) -> MarketData:
     atr5 = pd.Series(tr).ewm(alpha=1 / cfg.atr_len, adjust=False,
                              min_periods=cfg.atr_len).mean().to_numpy()
 
-    d1 = tick_rule_delta(df1["close"].to_numpy(float), df1["volume"].to_numpy(float))
+    if "up_volume" in df1.columns and df1[["up_volume", "down_volume"]].to_numpy().sum() > 0:
+        d1 = (df1["up_volume"] - df1["down_volume"]).to_numpy(float)
+        print("delta source: real up/down volume split")
+    else:
+        d1 = tick_rule_delta(df1["close"].to_numpy(float), df1["volume"].to_numpy(float))
+        print("delta source: tick-rule proxy on 1m closes")
     d5 = (pd.Series(d1, index=idx1).resample(cfg.signal_tf, label="left", closed="left")
           .sum().reindex(idx5).fillna(0.0).to_numpy())
     cum5 = np.cumsum(d5)
